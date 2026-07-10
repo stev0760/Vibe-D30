@@ -66,6 +66,59 @@ Not yet verified — needs a real captured print job to confirm command
 framing, since we don't yet know if this uses a standard protocol
 (ESC/POS-like) or a fully proprietary one (TSPL-like, common on Phomemo).
 
+## Protocol: already reverse-engineered by others
+
+The D30 is a popular budget printer, and its protocol has already been
+sniffed and published by several independent projects. Cross-referencing
+them against our own GATT scan confirms an exact match:
+
+- [odensc/phomemo-d30-web-bluetooth](https://github.com/odensc/phomemo-d30-web-bluetooth) —
+  uses Web Bluetooth, which can *only* speak GATT (never classic RFCOMM),
+  and explicitly targets service `0000ff00-0000-1000-8000-00805f9b34fb`
+  and characteristic `0000ff02-0000-1000-8000-00805f9b34fb` for writes —
+  **byte-for-byte the same UUIDs we found by scanning our own unit.**
+- [crabdancing/phomemo-d30](https://github.com/crabdancing/phomemo-d30) and
+  [polskafan/phomemo_d30](https://github.com/polskafan/phomemo_d30) —
+  Rust/Python implementations of the same protocol, but transported over
+  classic Bluetooth RFCOMM sockets instead of BLE GATT. Since our unit's
+  BlueZ `Device1.Connect()` fails with `br-connection-not-supported`, our
+  unit likely doesn't answer on RFCOMM at all (or that code path differs
+  by firmware revision) — but the underlying byte protocol is the same
+  regardless of transport, and the GATT path (confirmed working via
+  `bleak`) is what we should use.
+
+### Command format (standard Epson ESC/POS, "GS v 0" raster image command)
+
+Print header (10 bytes), sent as one write to `ff02`:
+
+```
+1b 40                   ESC @        — initialize/reset printer
+1d 76 30 00             GS v 0 m=0   — "print raster bit image" command
+<xL> <xH>               width in BYTES, little-endian 16-bit (e.g. 0x0c 0x00 = 12 bytes = 96px)
+<yL> <yH>               height in ROWS, little-endian 16-bit (e.g. 0x40 0x01 = 320 rows)
+```
+
+Then the raster image data itself: 1 bit per pixel, MSB first, 1 = print
+(dark) / 0 = blank, row-major, `width_bytes` bytes per row × `height`
+rows. Sent in ~128-byte chunks (chunk size is a transport-friendliness
+choice, not part of the protocol).
+
+Footer (3 bytes), sent as the final write:
+
+```
+1b 64 00                ESC d 0      — print and feed 0 lines (finalize/cut point)
+```
+
+For the D30's 12mm tape: width is fixed at 96px (12 bytes/row); height
+(label length) is however many px/rows the content needs. Some
+implementations (crabdancing/polskafan) also send an extra proprietary
+"magic" init sequence (`1f 11 ..` bytes) before the header — purpose
+unconfirmed, possibly related to label-gap/calibration sensing on some
+firmware revisions. The web-bluetooth implementation skips it entirely
+and reportedly still works, so it may not be required for our unit.
+
+Not yet tested against the physical printer — see `scripts/print_test.py`.
+
 ## Next step: capture real traffic
 
 The fastest path to the actual byte protocol is capturing the official
