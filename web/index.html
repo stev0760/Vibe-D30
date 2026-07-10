@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>D30 Labeler</title>
+  <style>
+    :root {
+      --bg: #16181d;
+      --panel: #1f232b;
+      --edge: #333a46;
+      --text: #d7dae0;
+      --muted: #8b93a1;
+      --accent: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.4 system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 14px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--edge);
+    }
+    header h1 { font-size: 15px; margin: 0 8px 0 0; font-weight: 600; }
+    main { flex: 1; display: flex; min-height: 0; }
+    #canvasArea {
+      flex: 1;
+      overflow: auto;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    #editCanvas {
+      background: #fff;
+      box-shadow: 0 0 0 1px var(--edge), 0 8px 30px rgba(0,0,0,.45);
+      border-radius: 3px;
+      cursor: crosshair;
+      touch-action: none;
+    }
+    aside {
+      width: 280px;
+      background: var(--panel);
+      border-left: 1px solid var(--edge);
+      padding: 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; }
+    label.row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
+    input, select, textarea, button {
+      font: inherit;
+      color: inherit;
+      background: #262b35;
+      border: 1px solid var(--edge);
+      border-radius: 5px;
+      padding: 5px 8px;
+    }
+    input[type="checkbox"] { width: auto; }
+    input[type="number"] { width: 70px; }
+    textarea { width: 100%; resize: vertical; }
+    select { width: 100%; }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    button:disabled { opacity: .5; cursor: default; }
+    #elementList { list-style: none; margin: 0; padding: 0; }
+    #elementList li {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 6px; border-radius: 4px;
+    }
+    #elementList li span { flex: 1; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #elementList li.selected { background: #2a3140; }
+    #elementList button { padding: 1px 6px; }
+    footer {
+      background: var(--panel);
+      border-top: 1px solid var(--edge);
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #previewWrap { overflow-x: auto; }
+    #preview { image-rendering: pixelated; background: #fff; border-radius: 2px; box-shadow: 0 0 0 1px var(--edge); }
+    #printBar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    #printStatus { color: var(--muted); }
+    #lengthReadout { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #555; display: inline-block; }
+    .dot.on { background: #22c55e; }
+    .dot.err { background: #ef4444; }
+    .spacer { flex: 1; }
+    .hint { color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>D30 Labeler</h1>
+    <button id="addText">+ Text</button>
+    <span class="spacer"></span>
+    <span id="lengthReadout"></span>
+    <span class="dot" id="statusDot"></span>
+    <span class="hint" id="statusText"></span>
+  </header>
+
+  <main>
+    <div id="canvasArea"><canvas id="editCanvas"></canvas></div>
+    <aside>
+      <section id="textProps" style="display:none">
+        <h2>Text</h2>
+        <textarea id="propText" rows="2"></textarea>
+        <input id="fontFilter" placeholder="filter fonts…" style="width:100%; margin-top:8px" />
+        <select id="fontSelect" size="6" style="margin-top:6px"></select>
+        <label class="row">Size <span>
+          <input type="number" id="fontPx" min="4" max="96" />
+          <label><input type="checkbox" id="autoSize" /> auto</label>
+        </span></label>
+        <label class="row">Style <span>
+          <label><input type="checkbox" id="boldToggle" /> <b>B</b></label>
+          <label><input type="checkbox" id="italicToggle" /> <i>I</i></label>
+        </span></label>
+        <button id="deleteEl" style="margin-top:6px">Delete element</button>
+      </section>
+      <section>
+        <h2>Elements</h2>
+        <ul id="elementList"></ul>
+        <p class="hint">Drag to move · corner handle to resize · arrows nudge · Del removes</p>
+      </section>
+    </aside>
+  </main>
+
+  <footer>
+    <div id="previewWrap"><canvas id="preview"></canvas></div>
+    <div id="printBar">
+      <label>Length
+        <select id="lengthMode">
+          <option value="fixed">fixed</option>
+          <option value="auto">auto</option>
+        </select>
+      </label>
+      <label><input type="number" id="lengthMm" min="16" max="300" /> mm</label>
+      <label>Copies <input type="number" id="copies" value="1" min="1" max="10" /></label>
+      <label><input type="checkbox" id="dryRun" checked /> dry run</label>
+      <button class="primary" id="printBtn">Print ⎙</button>
+      <span id="printStatus"></span>
+    </div>
+  </footer>
+
+  <script type="module" src="/js/editor.js"></script>
+</body>
+</html>
