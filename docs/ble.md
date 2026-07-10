@@ -117,7 +117,31 @@ unconfirmed, possibly related to label-gap/calibration sensing on some
 firmware revisions. The web-bluetooth implementation skips it entirely
 and reportedly still works, so it may not be required for our unit.
 
-Not yet tested against the physical printer — see `scripts/print_test.py`.
+**Confirmed working** — `scripts/print_test.py --live` successfully printed
+a real "Hello World!" label. First attempt clipped because the font size
+was a fixed fraction of the tape width and didn't account for text
+*length*; fixed by auto-fitting the font size to both the width and
+height of the available canvas (measure at a reference size, scale to
+the more constraining dimension). Second attempt printed cleanly.
+
+### Gotcha: BlueZ auto-reconnects this device, which breaks discovery
+
+This device is `Bonded`/`Trusted` in BlueZ and advertises an
+HID-class UUID (`00001812-...`). BlueZ auto-reconnects trusted/HID-class
+peripherals as soon as they start advertising — but a connected
+peripheral stops advertising, so a fresh discovery scan
+(`BleakScanner.find_device_by_address`) can spuriously report "not
+found" if BlueZ's auto-reconnect wins the race and grabs the connection
+first. Symptom: `bluetoothctl info <mac>` shows `Connected: yes` even
+though you never asked anything to connect.
+
+Fixes, in order of preference:
+1. `bluetoothctl disconnect <mac>` before running a script, so it's free
+   to advertise and be found again.
+2. If it keeps re-grabbing the connection between runs,
+   `bluetoothctl untrust <mac>` once to stop BlueZ's auto-reconnect
+   behavior entirely (safe — this device doesn't need OS-level
+   pairing/trust for the app-layer BLE GATT protocol to work).
 
 ## Next step: capture real traffic
 

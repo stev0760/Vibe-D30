@@ -14,9 +14,13 @@ target in a phone or desktop Bluetooth settings UI.
       support QR code
 - [x] Connected over BLE from Linux with no classic pairing required
       and enumerated the full GATT table (see [docs/ble.md](docs/ble.md))
+- [x] Confirmed working end-to-end print from Linux via BLE
+      (`scripts/print_test.py --live` — see [docs/ble.md](docs/ble.md))
 - [ ] Capture the official app's actual print traffic (Android HCI
-      snoop log) to learn the byte-level command protocol
-- [ ] Reimplement send-a-label as a Linux CLI tool
+      snoop log) to double check edge cases (barcodes, images, the
+      unexplained `1f 11 ..` "magic" init bytes other implementations send)
+- [ ] Turn `print_test.py` into a general-purpose Linux CLI tool
+      (images/barcodes, not just auto-fit text)
 
 ## Layout
 
