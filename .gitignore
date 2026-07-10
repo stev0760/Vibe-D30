@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+enhanced/
+*.btsnoop*
+*.log
+.claude/settings.local.json
