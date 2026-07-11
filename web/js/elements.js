@@ -59,9 +59,7 @@ export function draw(ctx, el) {
     ctx.fillStyle = "#000";
     ctx.textBaseline = "alphabetic";
     ctx.fillText(el.text, el.x + m.left, el.y + m.ascent);
-  } else if (el.type === "image" && el._bitmap) {
-    ctx.drawImage(el._bitmap, el.x, el.y, el.w, el.h);
-  } else if (el.type === "icon" && el._bitmap) {
+  } else if ((el.type === "image" || el.type === "icon") && el._bitmap) {
     ctx.drawImage(el._bitmap, el.x, el.y, el.w, el.h);
   }
 }
@@ -72,6 +70,15 @@ export function makeText(text, fontId, x, y, fontPx = 48) {
 
 export function makeImage(dataUrl, w, h, x, y) {
   return { id: newId(), type: "image", dataUrl, w, h, x, y, mode: "dither", threshold: 128 };
+}
+
+// Icons are image elements with a vector (SVG data-URL) source: the browser
+// re-rasterizes the SVG at whatever size it's drawn, so resizing stays crisp
+// and the whole image bitmap/dither pipeline is reused unchanged. Threshold
+// default suits line art; 160 keeps antialiased stroke edges from thinning.
+export function makeIcon(name, svg, size, x, y) {
+  const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  return { id: newId(), type: "icon", name, dataUrl, w: size, h: size, x, y, mode: "threshold", threshold: 160 };
 }
 
 // ---- image element bitmap cache --------------------------------------------

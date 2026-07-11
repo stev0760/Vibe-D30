@@ -101,6 +101,23 @@
     .dot.err { background: #ef4444; }
     .spacer { flex: 1; }
     .hint { color: var(--muted); font-size: 12px; }
+    #iconPicker {
+      position: fixed; inset: 0; background: rgba(0,0,0,.55);
+      display: grid; place-items: center; z-index: 10;
+    }
+    #iconPickerBox {
+      background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
+      width: 560px; max-width: 92vw; max-height: 70vh;
+      display: flex; flex-direction: column; padding: 12px; gap: 10px;
+    }
+    #iconPickerHead { display: flex; gap: 10px; align-items: center; }
+    #iconPickerHead input { flex: 1; }
+    #iconGrid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+      gap: 6px; overflow-y: auto;
+    }
+    .iconCell { display: grid; place-items: center; aspect-ratio: 1; padding: 6px; }
+    .iconCell svg { width: 22px; height: 22px; }
   </style>
 </head>
 <body>
@@ -108,6 +125,7 @@
     <h1>D30 Labeler</h1>
     <button id="addText">+ Text</button>
     <button id="addImage">+ Image</button>
+    <button id="addIcon">+ Icon</button>
     <input type="file" id="imageFile" accept="image/*" hidden />
     <span class="spacer"></span>
     <span id="lengthReadout"></span>
@@ -168,6 +186,17 @@
       <span id="printStatus"></span>
     </div>
   </footer>
+
+  <div id="iconPicker" style="display:none">
+    <div id="iconPickerBox">
+      <div id="iconPickerHead">
+        <input id="iconSearch" placeholder="search 1995 icons…" />
+        <span id="iconCount" class="hint"></span>
+        <button id="iconPickerClose">✕</button>
+      </div>
+      <div id="iconGrid"></div>
+    </div>
+  </div>
 
   <script type="module" src="/js/editor.js"></script>
 </body>

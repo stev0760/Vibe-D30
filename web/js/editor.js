@@ -1,7 +1,7 @@
 // App orchestration: document state, selection, panels, persistence, print.
 
 import { LabelCanvas } from "./canvas.js";
-import { autoFitFontPx, ensureImageBitmap, makeImage, makeText, measure, seedIds } from "./elements.js";
+import { autoFitFontPx, ensureImageBitmap, makeIcon, makeImage, makeText, measure, seedIds } from "./elements.js";
 import { defaultFontId, listFonts, loadFont } from "./fonts.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -86,7 +86,7 @@ function update() {
         if (fixed) el.x = Math.max(AUTO_MARGIN_PX, Math.round((doc.lengthMm * DOTS_PER_MM - b.w) / 2));
         el.y = Math.round((doc.tapeWidthPx - b.h) / 2);
       }
-    } else if (el.type === "image") {
+    } else if (el.type === "image" || el.type === "icon") {
       // async on first build/restore; the guard in ensureImageBitmap makes
       // the re-entrant update() a no-op for already-current bitmaps.
       ensureImageBitmap(el, update);
@@ -159,7 +159,7 @@ let fontsCache = [];
 function syncPropsPanel() {
   const el = selectedEl();
   $("#textProps").style.display = el?.type === "text" ? "" : "none";
-  $("#imageProps").style.display = el?.type === "image" ? "" : "none";
+  $("#imageProps").style.display = el?.type === "image" || el?.type === "icon" ? "" : "none";
   if (el?.type === "text") {
     $("#propText").value = el.text;
     $("#fontSelect").value = el.fontId;
@@ -167,7 +167,7 @@ function syncPropsPanel() {
     $("#autoSize").checked = el.autoSize;
     $("#boldToggle").checked = el.bold;
     $("#italicToggle").checked = el.italic;
-  } else if (el?.type === "image") {
+  } else if (el?.type === "image" || el?.type === "icon") {
     $("#imgMode").value = el.mode;
     $("#imgThreshold").value = el.threshold;
   }
@@ -239,14 +239,14 @@ function wirePropsPanel() {
 
   $("#imgMode").addEventListener("change", (e) => {
     const el = selectedEl();
-    if (el?.type === "image") {
+    if (el?.type === "image" || el?.type === "icon") {
       el.mode = e.target.value;
       update();
     }
   });
   $("#imgThreshold").addEventListener("input", (e) => {
     const el = selectedEl();
-    if (el?.type === "image") {
+    if (el?.type === "image" || el?.type === "icon") {
       el.threshold = Number(e.target.value);
       update();
     }
@@ -308,6 +308,58 @@ async function addImage(file) {
     h,
     Math.round((getLengthPx() - w) / 2),
     Math.round((doc.tapeWidthPx - h) / 2)
+  );
+  doc.elements.push(el);
+  setSelection(el.id);
+}
+
+// ---- icon picker ------------------------------------------------------------
+
+let iconsIndex = null;
+
+async function openIconPicker() {
+  if (!iconsIndex) {
+    iconsIndex = await (await fetch("/icons.json")).json();
+  }
+  $("#iconPicker").style.display = "";
+  $("#iconSearch").value = "";
+  renderIconGrid("");
+  $("#iconSearch").focus();
+}
+
+function closeIconPicker() {
+  $("#iconPicker").style.display = "none";
+}
+
+function renderIconGrid(filter) {
+  const grid = $("#iconGrid");
+  grid.innerHTML = "";
+  const needle = filter.trim().toLowerCase();
+  let shown = 0;
+  for (const [name, entry] of Object.entries(iconsIndex)) {
+    if (needle && !name.includes(needle) && !entry.t.some((t) => t.includes(needle))) continue;
+    if (++shown > 96) break;
+    const cell = document.createElement("button");
+    cell.className = "iconCell";
+    cell.title = name;
+    cell.innerHTML = entry.s; // inline SVG: currentColor strokes follow UI color
+    cell.addEventListener("click", () => {
+      addIcon(name, entry.s);
+      closeIconPicker();
+    });
+    grid.appendChild(cell);
+  }
+  $("#iconCount").textContent = shown > 96 ? "96+ shown, refine search" : `${shown} icons`;
+}
+
+function addIcon(name, svg) {
+  const size = 64;
+  const el = makeIcon(
+    name,
+    svg,
+    size,
+    Math.round((getLengthPx() - size) / 2),
+    Math.round((doc.tapeWidthPx - size) / 2)
   );
   doc.elements.push(el);
   setSelection(el.id);
@@ -404,6 +456,12 @@ async function boot() {
     const file = e.target.files[0];
     if (file) addImage(file);
     e.target.value = ""; // allow re-adding the same file
+  });
+  $("#addIcon").addEventListener("click", openIconPicker);
+  $("#iconSearch").addEventListener("input", (e) => renderIconGrid(e.target.value));
+  $("#iconPickerClose").addEventListener("click", closeIconPicker);
+  $("#iconPicker").addEventListener("click", (e) => {
+    if (e.target === $("#iconPicker")) closeIconPicker();
   });
   $("#printBtn").addEventListener("click", doPrint);
   $("#lengthMode").addEventListener("change", (e) => {
