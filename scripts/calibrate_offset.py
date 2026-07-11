@@ -10,9 +10,11 @@ magnitude) in one label:
 - a missing edge bar means that strip of the label is unreachable
 
 This script deliberately does NOT apply d30.protocol.apply_start_offset —
-it measures the raw hardware behavior that offset compensates for.
-Result on this unit (2026-07-11): ~2mm cut on the left, spare label on
-the right -> PRINT_START_OFFSET_MM = 2.0 in d30/protocol.py.
+it measures the raw print-start position. Note: that position varies
+from print to print depending on where the previous label was torn off,
+so there is no stable constant to calibrate; use the web UI's Offset
+field + Calibrate button to dial in the current spool state instead.
+The first measurement on this unit (2026-07-11) happened to be ~2mm.
 
 Usage:
     .venv/bin/python scripts/calibrate_offset.py             # dry run: writes ruler.png

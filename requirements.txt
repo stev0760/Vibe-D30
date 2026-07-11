@@ -1,0 +1,8 @@
+# Runtime
+bleak
+pillow
+fastapi
+uvicorn
+
+# Dev/testing (optional): the UI regression sweep additionally needs
+#   pip install playwright && playwright install chromium

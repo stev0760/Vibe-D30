@@ -162,9 +162,8 @@ async def main():
         await page.click("#printBtn")
         status = await wait_print_done(page)
         check("dry-run print (text)", "dry run ok" in status, status.strip())
-        # 40mm label = 320 rows + 16 rows of print-start offset (2mm,
-        # d30.protocol.PRINT_START_OFFSET_MM) = 336 rows = 0x0150 LE
-        check("header bytes 40mm/12mm+offset", "1b401d7630000c005001" in status, status.strip())
+        # 40mm label at the default 0mm offset = 320 rows = 0x0140 LE
+        check("header bytes 40mm/12mm", "1b401d7630000c004001" in status, status.strip())
 
         # --- offset control + in-UI calibration ruler ---------------------------
         await page.fill("#offsetMm", "4")
@@ -177,7 +176,7 @@ async def main():
         await page.click("#calBtn")
         status = await wait_print_done(page)
         check("calibration ruler dry-run", "dry run ok" in status, status.strip())
-        await page.fill("#offsetMm", "2")
+        await page.fill("#offsetMm", "0")
         await page.wait_for_timeout(150)
 
         # --- showcase: icon + text + dithered gradient image -------------------

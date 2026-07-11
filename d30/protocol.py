@@ -12,14 +12,13 @@ TAPE_WIDTH_MM = 12  # the D30's tape; parameterized so other sizes can follow
 TAPE_WIDTH_PX = TAPE_WIDTH_MM * DOTS_PER_MM  # 96px = 12 bytes/row
 CHUNK_SIZE = 128  # bytes per BLE write; transport-friendliness, not protocol
 
-# The print pass starts ~2mm late relative to the die-cut label's leading
-# edge, so unshifted output lands toward the label's left (reading
-# orientation) with the leftmost content cut off. The exact amount varies
-# with spool tension and where the label edge sits, so this is only a
-# default — the web UI exposes a per-print offset (persisted client-side)
-# and prints a calibration ruler to dial it in. Baseline measured with
-# scripts/calibrate_offset.py on 12x40mm die-cut tape (2026-07-11).
-PRINT_START_OFFSET_MM = 2.0
+# Where the print pass starts relative to the die-cut label edge varies
+# arbitrarily from print to print — it depends on where the previous label
+# was manually torn off (the tear bar is imprecise), so there is no stable
+# constant to bake in. Default 0; the web UI exposes a per-print offset
+# (persisted client-side) and prints a calibration ruler to dial it in for
+# the current spool state.
+PRINT_START_OFFSET_MM = 0.0
 
 
 def apply_start_offset(

@@ -66,7 +66,7 @@ function restore() {
 
 function currentOffsetMm() {
   const v = Number($("#offsetMm").value);
-  return Number.isFinite(v) ? Math.max(-8, Math.min(8, v)) : 2;
+  return Number.isFinite(v) ? Math.max(-8, Math.min(8, v)) : 0;
 }
 
 function restoreCal() {

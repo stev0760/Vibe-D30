@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A from-scratch Linux driver **and local web app (WYSIWYG label editor)**
-for the Phomemo D30, a cheap BLE-only thermal label maker whose official
-app is Android/iOS only. There is no vendor Linux/USB support at all —
+**Vibe-D30**: a from-scratch Linux driver **and local web app (WYSIWYG
+label editor)** for the Phomemo D30, a cheap BLE-only thermal label
+maker whose official app is Android/iOS only. There is no vendor Linux/USB support at all —
 everything here was reverse-engineered by scanning the device directly
 and cross-referencing the result against prior open-source work on the
 same printer. See `README.md` for status and `docs/hardware.md` /
@@ -22,7 +22,7 @@ die-cut tape is on hand; tape width is parameterized in
 
 ```
 python3 -m venv .venv
-.venv/bin/pip install bleak pillow fastapi uvicorn
+.venv/bin/pip install -r requirements.txt
 
 # Web editor (http://127.0.0.1:8330). D30_DRY_RUN=1 forces every print
 # request to dry-run — use it for all UI development.
@@ -111,23 +111,21 @@ rotate 90° at the end — normal-orientation layout first, then into the
 printer's raster order. The printer has no "orientation" concept, it
 just wants 96px-wide rows.
 
-**Print-start offset**: the print pass starts ~2mm late relative to the
-die-cut label's leading edge, so uncompensated output lands toward the
-label's left with that much cut off — and the exact amount varies with
-spool tension / where the label edge sits, so it's user-tunable. Both
-print paths run the landscape image through `apply_start_offset`
+**Print-start offset**: where the print pass starts relative to the
+die-cut label edge varies *per print* — it depends on where the previous
+label was manually torn off (imprecise tear bar), so there is no stable
+constant; the default is 0 and the offset is a user control. Both print
+paths run the landscape image through `apply_start_offset`
 (`d30/protocol.py`; positive pads left = shifts content right, negative
 crops) right before rotation; extra feed lands in the die-cut gap. The
 web UI has an Offset field in the print bar (sent per print, persisted
 in localStorage `d30cal` — device calibration, deliberately not part of
 the document) and a Calibrate button that prints a client-rendered mm
-ruler *with the current offset applied*: when dialed in, the 0 mark
-sits on the label's left edge, and any residual error is exactly the
-correction to add. Fallbacks: `PRINT_START_OFFSET_MM = 2.0` default,
-`D30_OFFSET_MM` server env, `--offset-mm` CLI flag,
-`scripts/calibrate_offset.py` (uncompensated ruler, for baseline
-measurement). The editor/preview never applies the offset — it maps the
-design onto the physical label.
+ruler *with the current offset applied*: the residual error at the 0
+mark is exactly the correction to add. Fallbacks: `D30_OFFSET_MM`
+server env, `--offset-mm` CLI flag, `scripts/calibrate_offset.py`
+(uncompensated ruler). The editor/preview never applies the offset — it
+maps the design onto the physical label.
 
 **The client renders; the server packs and prints.** The web editor's
 HTML canvas is the single source of truth for pixels: at print time the
