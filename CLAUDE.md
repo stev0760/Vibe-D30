@@ -37,12 +37,15 @@ D30_DRY_RUN=1 .venv/bin/uvicorn server.app:app --port 8330
 .venv/bin/python scripts/gatt_probe.py
 ```
 
-There is no test suite, linter, or build step (the web frontend is
-buildless vanilla ES modules). UI changes are verified by driving the
-editor headlessly with Playwright (`.venv/bin/pip install playwright`,
-chromium already downloaded) against a `D30_DRY_RUN=1` server —
-screenshot the preview strip and check `pageerror` events; see the
-honest-preview note under Architecture.
+There is no linter or build step (the web frontend is buildless vanilla
+ES modules). The one test is `scripts/ui_check.py`: a Playwright
+regression sweep (`.venv/bin/pip install playwright`, chromium already
+downloaded) that drives the editor headlessly against a `D30_DRY_RUN=1`
+server on port 8330 and checks every v1 feature including dry-run print
+header bytes — run it after any UI change (note: it clears the editor's
+saved localStorage document). For ad-hoc UI verification, drive the
+editor the same way and screenshot the preview strip + check `pageerror`
+events; see the honest-preview note under Architecture.
 
 ### Before touching the physical device
 
