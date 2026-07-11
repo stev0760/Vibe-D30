@@ -49,13 +49,16 @@ events; see the honest-preview note under Architecture.
 
 ### Before touching the physical device
 
-The `d30` transport (and therefore the CLI and server) automatically
-runs `bluetoothctl disconnect` before scanning, working around the BlueZ
-auto-reconnect race (see Gotchas). The bare recon scripts in `scripts/`
-do NOT — for those, check
-`bluetoothctl info XX:XX:XX:XX:XX:XX | grep Connected` first and
-disconnect manually if it says yes. A live print consumes a physical
-label; always dry-run first and ask the user before burning one.
+Do NOT `bluetoothctl disconnect` or `untrust` the printer — the device
+should stay bonded + trusted, and BlueZ's auto-connected LE link is the
+*preferred* path (see Gotchas; earlier revisions of this file said the
+opposite and that advice broke printing for a day). The `d30` transport
+attaches to the existing link when there is one and handles the
+cold-connect bearer problem with retries. The printer sleeps after a few
+idle minutes and stops advertising — if it's not found, it needs its
+power button pressed, not more Bluetooth commands. A live print consumes
+a physical label; always dry-run first and ask the user before burning
+one.
 
 ## Architecture
 
@@ -140,13 +143,23 @@ by the browser at any size.
 
 ## Gotchas
 
-- **BlueZ auto-reconnects this device.** It's `Bonded`/`Trusted` and
-  advertises an HID-class UUID, which makes BlueZ grab it the instant it
-  starts advertising — racing (and sometimes beating) any discovery-based
-  scan in these scripts, which then reports a false "not found". Fix by
-  disconnecting first, or `bluetoothctl untrust <mac>` once to stop the
-  auto-reconnect permanently (the device doesn't need OS trust for GATT
-  to work).
+- **BlueZ auto-connects this device — that's the good path.** It's
+  bonded + trusted and advertises an HID-class UUID, so BlueZ grabs it
+  over LE the moment it advertises. Attaching to that existing link
+  always works; a *cold* `Device1.Connect()` may pick the classic BR/EDR
+  bearer this LE-only printer doesn't have and fail with
+  `br-connection-not-supported` (poisoned dual-bearer record — full
+  story + storage-level fix in docs/ble.md "bearer selection").
+  Never disconnect/untrust/remove the device to "clean up"; that
+  destroys the working configuration. `d30/transport.py` `_connect`
+  encodes all of this (attach, retry-on-bearer-error).
+- **Desktop "D30 is requesting access" authorization prompts (KDE/GNOME)
+  must be answered "trust and authorize".** While one sits unanswered,
+  the device's pending security request wedges the ATT queue — notify
+  subscriptions hang forever and prints appear stuck.
+- **The printer sleeps after a few idle minutes** and stops advertising;
+  scans then legitimately find nothing. Press its power button — don't
+  debug Bluetooth.
 - Photos/QR codes of the physical label are in `docs/images/`; the two
   webcam-captured ones are motion-blurred and kept only for reference —
   `IMG_9241.HEIC` (phone camera) is the sharp one everything was actually

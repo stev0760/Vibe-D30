@@ -124,24 +124,54 @@ was a fixed fraction of the tape width and didn't account for text
 height of the available canvas (measure at a reference size, scale to
 the more constraining dimension). Second attempt printed cleanly.
 
-### Gotcha: BlueZ auto-reconnects this device, which breaks discovery
+### Gotcha: BlueZ bearer selection — ride the auto-connect, don't fight it
 
-This device is `Bonded`/`Trusted` in BlueZ and advertises an
-HID-class UUID (`00001812-...`). BlueZ auto-reconnects trusted/HID-class
-peripherals as soon as they start advertising — but a connected
-peripheral stops advertising, so a fresh discovery scan
-(`BleakScanner.find_device_by_address`) can spuriously report "not
-found" if BlueZ's auto-reconnect wins the race and grabs the connection
-first. Symptom: `bluetoothctl info <mac>` shows `Connected: yes` even
-though you never asked anything to connect.
+**History note:** an earlier revision of this section recommended
+`bluetoothctl disconnect` before connecting and `untrust` to stop BlueZ
+auto-reconnecting the printer. That advice was wrong and caused a day of
+breakage; kept here so nobody re-derives it.
 
-Fixes, in order of preference:
-1. `bluetoothctl disconnect <mac>` before running a script, so it's free
-   to advertise and be found again.
-2. If it keeps re-grabbing the connection between runs,
-   `bluetoothctl untrust <mac>` once to stop BlueZ's auto-reconnect
-   behavior entirely (safe — this device doesn't need OS-level
-   pairing/trust for the app-layer BLE GATT protocol to work).
+The full picture (established against BlueZ 5.87 source,
+`src/device.c` `dev_connect`/`select_conn_bearer`):
+
+- The D30's advertisement carries classic-Bluetooth hints (Class of
+  Device `0x100680`, SPP + HID UUIDs), so BlueZ types every fresh device
+  record as **dual-bearer** even though the radio is LE-only.
+- `Device1.Connect()` (which is what bleak calls) picks a bearer.
+  For this device the stored record steers it to **BR/EDR**, which fails
+  instantly with `br-connection-not-supported`. Two poisons observed in
+  `/var/lib/bluetooth/<adapter>/<mac>/info`:
+  - a `[LinkKey]` section with **no** `[LongTermKey]` — a classic key
+    derived during LE pairing (CTKD); "the only bonded bearer" then wins
+    bearer selection, and it's the bearer that doesn't exist;
+  - `PreferredBearer=last-used` + `LastUsedBearer=bredr` — it remembers
+    the *failed* classic attempt as last-used and keeps re-picking it.
+- **But attaching to an already-connected device always works.** BlueZ
+  auto-connects bonded+trusted HID-class peripherals over LE the moment
+  they advertise. When that LE link is up, `Connect()` is a no-op attach:
+  no bearer choice, no failure. This is why prints "mysteriously" worked
+  for months — every success rode the auto-connected LE link; every
+  failure was a fresh connect that chose BR/EDR.
+
+So the stable configuration is: **leave the device bonded and trusted**,
+and let the transport (d30/transport.py `_connect`) attach to the
+existing LE link — it never disconnects first, and on the BR/EDR error it
+waits a few seconds for BlueZ's auto-connect to win, then retries.
+Discovery is not starved by the connection: bleak's BlueZ backend
+returns cached/connected devices, not just live advertisements.
+
+Related: KDE/GNOME may pop a "D30 is requesting access" authorization
+dialog (BlueZ's input subsystem treats the fake HID UUID as a keyboard
+trying to attach). **Answer "trust and authorize"** — while the dialog
+sits unanswered, the device's pending security request wedges parts of
+the ATT queue (observed: `ff01` reads still work, CCCD writes for
+`ff03` notifications hang forever), which presents as prints hanging.
+
+If a fresh setup ever hits persistent `br-connection-not-supported`
+with no bond (so no auto-connect to ride), the storage-level fix is:
+`sudo` edit `/var/lib/bluetooth/<adapter>/<mac>/info` — set
+`PreferredBearer=le`, delete any `LastUsedBearer=` line and the whole
+`[LinkKey]` section — then `sudo systemctl restart bluetooth`.
 
 ## Next step: capture real traffic
 
