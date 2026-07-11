@@ -111,16 +111,23 @@ rotate 90° at the end — normal-orientation layout first, then into the
 printer's raster order. The printer has no "orientation" concept, it
 just wants 96px-wide rows.
 
-**Print-start offset**: the firmware begins its pass ~2mm late relative
-to the die-cut label's leading edge, so uncompensated output lands 2mm
-toward the label's left with that much cut off. Both print paths run the
-landscape image through `apply_start_offset` (`d30/protocol.py`,
-`PRINT_START_OFFSET_MM = 2.0`, server override `D30_OFFSET_MM`) right
-before rotation — pads blank columns on the left, extra feed lands in
-the die-cut gap. The editor/preview never applies it (it maps the design
-onto the physical label). Calibrated with `scripts/calibrate_offset.py`
-(prints a ruler; deliberately uncompensated) — re-run it if labels from
-a different batch look shifted.
+**Print-start offset**: the print pass starts ~2mm late relative to the
+die-cut label's leading edge, so uncompensated output lands toward the
+label's left with that much cut off — and the exact amount varies with
+spool tension / where the label edge sits, so it's user-tunable. Both
+print paths run the landscape image through `apply_start_offset`
+(`d30/protocol.py`; positive pads left = shifts content right, negative
+crops) right before rotation; extra feed lands in the die-cut gap. The
+web UI has an Offset field in the print bar (sent per print, persisted
+in localStorage `d30cal` — device calibration, deliberately not part of
+the document) and a Calibrate button that prints a client-rendered mm
+ruler *with the current offset applied*: when dialed in, the 0 mark
+sits on the label's left edge, and any residual error is exactly the
+correction to add. Fallbacks: `PRINT_START_OFFSET_MM = 2.0` default,
+`D30_OFFSET_MM` server env, `--offset-mm` CLI flag,
+`scripts/calibrate_offset.py` (uncompensated ruler, for baseline
+measurement). The editor/preview never applies the offset — it maps the
+design onto the physical label.
 
 **The client renders; the server packs and prints.** The web editor's
 HTML canvas is the single source of truth for pixels: at print time the

@@ -15,10 +15,19 @@ export function seedIds(elements) {
   nextId = max + 1;
 }
 
+// Bold/italic are synthesized by hand: fonts arrive via the FontFace API as
+// single faces, so canvas "bold"/"italic" font specs silently fall back to
+// the regular face (2D canvas doesn't synthesize styles). Instead: bold =
+// stroke the glyphs with a weight-proportional line, italic = skew around
+// the baseline. Pure canvas drawing, so preview and print stay identical.
+const ITALIC_SLANT = 0.21; // ~12 degrees
+
 function fontSpec(el) {
-  const style = el.italic ? "italic " : "";
-  const weight = el.bold ? "bold " : "";
-  return `${style}${weight}${el.fontPx}px "${el.fontId}"`;
+  return `${el.fontPx}px "${el.fontId}"`;
+}
+
+function boldStrokePx(el) {
+  return el.bold ? Math.max(1, el.fontPx / 24) : 0;
 }
 
 // ---- measuring ------------------------------------------------------------
@@ -29,11 +38,27 @@ export function measure(el) {
   if (el.type === "text") {
     measureCtx.font = fontSpec(el);
     const m = measureCtx.measureText(el.text || " ");
-    const ascent = m.actualBoundingBoxAscent;
-    const descent = m.actualBoundingBoxDescent;
-    const left = m.actualBoundingBoxLeft;
-    const right = m.actualBoundingBoxRight;
-    return { x: el.x, y: el.y, w: Math.max(1, left + right), h: Math.max(1, ascent + descent), ascent, left };
+    let ascent = m.actualBoundingBoxAscent;
+    let descent = m.actualBoundingBoxDescent;
+    let left = m.actualBoundingBoxLeft;
+    let right = m.actualBoundingBoxRight;
+    // Faux-bold stroke thickens ink by lw/2 in every direction; faux-italic
+    // skew pushes the above-baseline part right and below-baseline part left.
+    const lw = boldStrokePx(el);
+    ascent += lw / 2;
+    descent += lw / 2;
+    left += lw / 2;
+    right += lw / 2;
+    if (el.italic) {
+      left += ITALIC_SLANT * descent;
+      right += ITALIC_SLANT * ascent;
+    }
+    return {
+      x: el.x, y: el.y,
+      w: Math.max(1, left + right),
+      h: Math.max(1, ascent + descent),
+      ascent, left,
+    };
   }
   // image / icon: explicit box
   return { x: el.x, y: el.y, w: el.w, h: el.h };
@@ -55,10 +80,25 @@ export function draw(ctx, el) {
   if (el.type === "text") {
     if (!isLoaded(el.fontId)) return; // will re-render once loaded
     const m = measure(el);
+    const penX = el.x + m.left;
+    const baseY = el.y + m.ascent;
+    ctx.save();
     ctx.font = fontSpec(el);
     ctx.fillStyle = "#000";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(el.text, el.x + m.left, el.y + m.ascent);
+    if (el.italic) {
+      // Skew around the baseline: x' = x - SLANT*(y - baseY), baseline fixed.
+      ctx.transform(1, 0, -ITALIC_SLANT, 1, ITALIC_SLANT * baseY, 0);
+    }
+    ctx.fillText(el.text, penX, baseY);
+    const lw = boldStrokePx(el);
+    if (lw) {
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = lw;
+      ctx.lineJoin = "round";
+      ctx.strokeText(el.text, penX, baseY);
+    }
+    ctx.restore();
   } else if ((el.type === "image" || el.type === "icon") && el._bitmap) {
     // Multiply: ink accumulates. The bitmap's white background multiplies to
     // identity, so an element's bounding box doesn't erase what's under it.

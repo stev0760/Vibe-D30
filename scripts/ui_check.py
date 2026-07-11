@@ -42,6 +42,19 @@ async def wait_print_done(page):
     return await page.text_content("#printStatus")
 
 
+async def preview_ink(page):
+    """Count black pixels in the preview strip (the true print pixels)."""
+    return await page.evaluate(
+        """() => {
+            const p = document.querySelector('#preview');
+            const d = p.getContext('2d').getImageData(0, 0, p.width, p.height).data;
+            let black = 0;
+            for (let i = 0; i < d.length; i += 4) if (d[i] < 128) black++;
+            return { black, total: p.width * p.height };
+        }"""
+    )
+
+
 async def main():
     async with async_playwright() as pw:
         browser = await pw.chromium.launch()
@@ -130,6 +143,21 @@ async def main():
             f"fontPx {px_before} -> {after['fontPx']}, autoSize={after['autoSize']}",
         )
 
+        # faux bold/italic: canvas can't synthesize styles for FontFace fonts,
+        # so we stroke/skew by hand — bold must add ink at a fixed font size
+        ink_plain = (await preview_ink(page))["black"]
+        await page.check("#boldToggle")
+        await page.wait_for_timeout(300)
+        ink_bold = (await preview_ink(page))["black"]
+        check("faux bold adds ink", ink_bold > ink_plain, f"{ink_plain} -> {ink_bold}")
+        await page.check("#italicToggle")
+        await page.wait_for_timeout(300)
+        ink_bi = (await preview_ink(page))["black"]
+        check("faux italic renders", ink_bi > 0, str(ink_bi))
+        await page.uncheck("#boldToggle")
+        await page.uncheck("#italicToggle")
+        await page.wait_for_timeout(200)
+
         # --- dry-run print of the text label -----------------------------------
         await page.click("#printBtn")
         status = await wait_print_done(page)
@@ -137,6 +165,20 @@ async def main():
         # 40mm label = 320 rows + 16 rows of print-start offset (2mm,
         # d30.protocol.PRINT_START_OFFSET_MM) = 336 rows = 0x0150 LE
         check("header bytes 40mm/12mm+offset", "1b401d7630000c005001" in status, status.strip())
+
+        # --- offset control + in-UI calibration ruler ---------------------------
+        await page.fill("#offsetMm", "4")
+        await page.click("#printBtn")
+        status = await wait_print_done(page)
+        # 320 rows + 4mm*8px = 352 rows = 0x0160 LE
+        check("offset 4mm changes header", "1b401d7630000c006001" in status, status.strip())
+        stored = await page.evaluate("JSON.parse(localStorage.getItem('d30cal')).offsetMm")
+        check("offset persisted (d30cal)", stored == 4, str(stored))
+        await page.click("#calBtn")
+        status = await wait_print_done(page)
+        check("calibration ruler dry-run", "dry run ok" in status, status.strip())
+        await page.fill("#offsetMm", "2")
+        await page.wait_for_timeout(150)
 
         # --- showcase: icon + text + dithered gradient image -------------------
         await page.evaluate("localStorage.removeItem('d30doc'); location.reload()")
@@ -182,15 +224,7 @@ async def main():
         check("showcase doc has 3 elements", len(items) == 3, json.dumps(items))
 
         # preview strip carries real ink (dithered mid-density pattern included)
-        stats = await page.evaluate(
-            """() => {
-                const p = document.querySelector('#preview');
-                const d = p.getContext('2d').getImageData(0, 0, p.width, p.height).data;
-                let black = 0;
-                for (let i = 0; i < d.length; i += 4) if (d[i] < 128) black++;
-                return { black, total: p.width * p.height };
-            }"""
-        )
+        stats = await preview_ink(page)
         frac = stats["black"] / stats["total"]
         check("preview has ink", 0.02 < frac < 0.9, f"{frac:.1%} black")
 

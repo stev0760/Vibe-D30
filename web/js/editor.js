@@ -11,6 +11,9 @@ const DOTS_PER_MM = 8;
 // physically clip ink placed tighter than this (confirmed on a real print).
 const AUTO_MARGIN_PX = 8;
 const STORAGE_KEY = "d30doc";
+// Device calibration (print-start offset) is persisted separately from the
+// document: it belongs to the printer/spool, not the design.
+const CAL_KEY = "d30cal";
 
 let doc = { tapeWidthPx: 96, lengthMode: "fixed", lengthMm: 40, elements: [] };
 let selectedId = null;
@@ -59,6 +62,24 @@ function restore() {
   } catch {
     /* corrupted state: start fresh */
   }
+}
+
+function currentOffsetMm() {
+  const v = Number($("#offsetMm").value);
+  return Number.isFinite(v) ? Math.max(-8, Math.min(8, v)) : 2;
+}
+
+function restoreCal() {
+  try {
+    const cal = JSON.parse(localStorage.getItem(CAL_KEY));
+    if (typeof cal?.offsetMm === "number") $("#offsetMm").value = cal.offsetMm;
+  } catch {
+    /* corrupted state: keep default */
+  }
+}
+
+function persistCal() {
+  localStorage.setItem(CAL_KEY, JSON.stringify({ offsetMm: currentOffsetMm() }));
 }
 
 // ---- rendering pipeline ---------------------------------------------------
@@ -365,37 +386,91 @@ function addIcon(name, svg) {
   setSelection(el.id);
 }
 
+async function postPrintCanvas(printCanvas, { copies = 1 } = {}) {
+  const status = $("#printStatus");
+  const blob = await new Promise((res) => printCanvas.toBlob(res, "image/png"));
+  const dataUrl = await new Promise((res) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.readAsDataURL(blob);
+  });
+  const png = dataUrl.split(",", 2)[1];
+  status.textContent = "printing…";
+  const res = await fetch("/api/print", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      png,
+      copies,
+      dryRun: $("#dryRun").checked,
+      offsetMm: currentOffsetMm(),
+    }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.detail ?? res.statusText);
+  status.textContent = body.dryRun
+    ? `dry run ok — ${body.packedBytes} bytes, header ${body.header}, offset ${body.offsetMm}mm`
+    : `printed ✓ (${body.packedBytes} bytes; notify: ${(body.notifications ?? []).slice(-1)})`;
+}
+
 async function doPrint() {
   const btn = $("#printBtn");
-  const status = $("#printStatus");
   btn.disabled = true;
-  status.textContent = "rendering…";
+  $("#printStatus").textContent = "rendering…";
   try {
-    const printCanvas = canvas.renderPrintCanvas();
-    const blob = await new Promise((res) => printCanvas.toBlob(res, "image/png"));
-    const dataUrl = await new Promise((res) => {
-      const fr = new FileReader();
-      fr.onload = () => res(fr.result);
-      fr.readAsDataURL(blob);
+    await postPrintCanvas(canvas.renderPrintCanvas(), {
+      copies: Number($("#copies").value) || 1,
     });
-    const png = dataUrl.split(",", 2)[1];
-    status.textContent = "printing…";
-    const res = await fetch("/api/print", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        png,
-        copies: Number($("#copies").value) || 1,
-        dryRun: $("#dryRun").checked,
-      }),
-    });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.detail ?? res.statusText);
-    status.textContent = body.dryRun
-      ? `dry run ok — ${body.packedBytes} bytes, header ${body.header}`
-      : `printed ✓ (${body.packedBytes} bytes; notify: ${(body.notifications ?? []).slice(-1)})`;
   } catch (err) {
-    status.textContent = `error: ${err.message}`;
+    $("#printStatus").textContent = `error: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Calibration ruler, drawn client-side like every label (one renderer).
+// Printed with the current offset applied: when the offset is right, the
+// "0" mark sits exactly on the physical label's left edge — any residual
+// error is exactly the correction to add to the Offset field.
+function drawRuler() {
+  const w = getLengthPx();
+  const h = doc.tapeWidthPx;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, w, 2); // top bar
+  ctx.fillRect(0, h - 2, w, 2); // bottom bar
+  ctx.fillRect(0, 0, 2, h); // left bar
+  ctx.fillRect(w - 2, 0, 2, h); // right bar
+  const lengthMm = Math.round(w / DOTS_PER_MM);
+  for (let mm = 0; mm <= lengthMm; mm++) {
+    const x = Math.min(mm * DOTS_PER_MM, w - 1);
+    const tick = mm % 10 === 0 ? 26 : mm % 5 === 0 ? 16 : 8;
+    ctx.fillRect(x, 2, 1, tick);
+  }
+  ctx.font = 'bold 22px "sans-serif"';
+  ctx.textBaseline = "top";
+  for (let mm = 0; mm <= lengthMm; mm += 10) {
+    const label = String(mm);
+    const tw = ctx.measureText(label).width;
+    const tx = Math.min(Math.max(2, mm * DOTS_PER_MM - tw / 2), w - tw - 3);
+    ctx.fillText(label, tx, 40);
+  }
+  ctx.fillText("<- left/0", 8, 68);
+  return c;
+}
+
+async function doCalibrate() {
+  const btn = $("#calBtn");
+  btn.disabled = true;
+  try {
+    await postPrintCanvas(drawRuler());
+  } catch (err) {
+    $("#printStatus").textContent = `error: ${err.message}`;
   } finally {
     btn.disabled = false;
   }
@@ -464,6 +539,9 @@ async function boot() {
     if (e.target === $("#iconPicker")) closeIconPicker();
   });
   $("#printBtn").addEventListener("click", doPrint);
+  $("#calBtn").addEventListener("click", doCalibrate);
+  $("#offsetMm").addEventListener("input", persistCal);
+  restoreCal();
   $("#lengthMode").addEventListener("change", (e) => {
     doc.lengthMode = e.target.value;
     $("#lengthMm").disabled = doc.lengthMode !== "fixed";

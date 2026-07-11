@@ -94,6 +94,7 @@ class PrintRequest(BaseModel):
     png: str  # base64, landscape length x 96
     copies: int = 1
     dryRun: bool = False
+    offsetMm: float | None = None  # per-print start offset; None = server default
 
 
 @app.get("/api/fonts")
@@ -154,8 +155,10 @@ async def print_label(req: PrintRequest):
     copies = max(1, min(req.copies, 10))
 
     # Same transform as the CLI path: print-start offset compensation, then
-    # unrolled landscape -> tape raster order.
-    raster_img = apply_start_offset(img.convert("L"), OFFSET_MM).rotate(90, expand=True)
+    # unrolled landscape -> tape raster order. Offset varies with spool
+    # tension, so the client can send its calibrated value per print.
+    offset = OFFSET_MM if req.offsetMm is None else max(-8.0, min(8.0, req.offsetMm))
+    raster_img = apply_start_offset(img.convert("L"), offset).rotate(90, expand=True)
     data = pack_raster(raster_img)
     header, footer = build_packet(data)
 
@@ -166,6 +169,7 @@ async def print_label(req: PrintRequest):
         "header": header.hex(),
         "footer": footer.hex(),
         "copies": copies,
+        "offsetMm": offset,
     }
 
     if req.dryRun or FORCE_DRY_RUN:

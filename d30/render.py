@@ -10,6 +10,7 @@ def render_label(
     length_mm: int,
     width_px: int = TAPE_WIDTH_PX,
     margin_px: int = 6,
+    offset_mm: float | None = None,
 ) -> Image.Image:
     """Render auto-fit text into tape raster order (width_px wide rows).
 
@@ -46,4 +47,5 @@ def render_label(
     x = (height_px - tw) / 2 - bbox[0]
     y = (width_px - th) / 2 - bbox[1]
     draw.text((x, y), text, fill=0, font=font)
-    return apply_start_offset(canvas).rotate(90, expand=True)
+    shifted = apply_start_offset(canvas) if offset_mm is None else apply_start_offset(canvas, offset_mm)
+    return shifted.rotate(90, expand=True)

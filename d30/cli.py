@@ -22,13 +22,20 @@ def main(argv=None):
     )
     parser.add_argument("--copies", type=int, default=1)
     parser.add_argument(
+        "--offset-mm",
+        type=float,
+        default=None,
+        help="Print-start offset in mm (default: calibrated constant; "
+        "positive shifts content toward the label's right)",
+    )
+    parser.add_argument(
         "--live",
         action="store_true",
         help="Actually connect and print. Default is a dry run.",
     )
     args = parser.parse_args(argv)
 
-    img = render_label(args.text, args.length_mm)
+    img = render_label(args.text, args.length_mm, offset_mm=args.offset_mm)
     data = pack_raster(img)
     header, footer = build_packet(data)
     print(f"Label canvas: {img.width}x{img.height}px")
