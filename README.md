@@ -91,7 +91,13 @@ install chromium`, then run it against a `D30_DRY_RUN=1` server.
 - FCC ID: `2ASRB-D30C`, IC: `29002-D30A`
 - Serial: `XXXXXXXXXXXXXXX`
 
-## License
+## License & prior art
 
-MIT (see [LICENSE](LICENSE)). Vendored [Lucide](https://lucide.dev)
+Apache-2.0 (see [LICENSE](LICENSE) and [NOTICE](NOTICE)) — inherited
+from [odensc/phomemo-d30-web-bluetooth](https://github.com/odensc/phomemo-d30-web-bluetooth),
+the implementation this project's protocol understanding was verified
+against. Also consulted:
+[polskafan/phomemo_d30](https://github.com/polskafan/phomemo_d30) (MIT)
+and [crabdancing/phomemo-d30](https://github.com/crabdancing/phomemo-d30)
+(AGPL-3.0, documentation only). Vendored [Lucide](https://lucide.dev)
 icons are ISC-licensed (see `web/LUCIDE-LICENSE.txt`).

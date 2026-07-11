@@ -1,0 +1,21 @@
+Vibe-D30
+Copyright 2026 Steve (Vibe-D30)
+
+Licensed under the Apache License, Version 2.0.
+
+This project's protocol understanding was reverse-engineered from the
+author's own Phomemo D30 unit and cross-referenced against prior
+open-source work on the same printer family:
+
+- odensc/phomemo-d30-web-bluetooth (Apache-2.0) — Web Bluetooth
+  implementation; used to confirm the ESC/POS raster byte layout over
+  GATT byte-for-byte. This project inherits its Apache-2.0 license in
+  acknowledgement.
+- polskafan/phomemo_d30 (MIT) — classic-RFCOMM implementation;
+  consulted for protocol cross-reference.
+- crabdancing/phomemo-d30 (AGPL-3.0) — classic-RFCOMM implementation;
+  its documentation was consulted as prior art (no code derived).
+
+Vendored assets:
+- Lucide icons (https://lucide.dev), ISC license — see
+  web/LUCIDE-LICENSE.txt.
