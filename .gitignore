@@ -5,3 +5,4 @@ enhanced/
 *.btsnoop*
 *.log
 .claude/settings.local.json
+scripts/ruler.png
