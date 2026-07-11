@@ -1,7 +1,7 @@
 // App orchestration: document state, selection, panels, persistence, print.
 
 import { LabelCanvas } from "./canvas.js";
-import { autoFitFontPx, makeText, measure, seedIds } from "./elements.js";
+import { autoFitFontPx, ensureImageBitmap, makeImage, makeText, measure, seedIds } from "./elements.js";
 import { defaultFontId, listFonts, loadFont } from "./fonts.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -86,6 +86,10 @@ function update() {
         if (fixed) el.x = Math.max(AUTO_MARGIN_PX, Math.round((doc.lengthMm * DOTS_PER_MM - b.w) / 2));
         el.y = Math.round((doc.tapeWidthPx - b.h) / 2);
       }
+    } else if (el.type === "image") {
+      // async on first build/restore; the guard in ensureImageBitmap makes
+      // the re-entrant update() a no-op for already-current bitmaps.
+      ensureImageBitmap(el, update);
     }
   }
   canvas.render();
@@ -154,8 +158,8 @@ let fontsCache = [];
 
 function syncPropsPanel() {
   const el = selectedEl();
-  const panel = $("#textProps");
-  panel.style.display = el?.type === "text" ? "" : "none";
+  $("#textProps").style.display = el?.type === "text" ? "" : "none";
+  $("#imageProps").style.display = el?.type === "image" ? "" : "none";
   if (el?.type === "text") {
     $("#propText").value = el.text;
     $("#fontSelect").value = el.fontId;
@@ -163,6 +167,9 @@ function syncPropsPanel() {
     $("#autoSize").checked = el.autoSize;
     $("#boldToggle").checked = el.bold;
     $("#italicToggle").checked = el.italic;
+  } else if (el?.type === "image") {
+    $("#imgMode").value = el.mode;
+    $("#imgThreshold").value = el.threshold;
   }
 }
 
@@ -229,6 +236,22 @@ function wirePropsPanel() {
     });
   }
   $("#deleteEl").addEventListener("click", deleteSelected);
+
+  $("#imgMode").addEventListener("change", (e) => {
+    const el = selectedEl();
+    if (el?.type === "image") {
+      el.mode = e.target.value;
+      update();
+    }
+  });
+  $("#imgThreshold").addEventListener("input", (e) => {
+    const el = selectedEl();
+    if (el?.type === "image") {
+      el.threshold = Number(e.target.value);
+      update();
+    }
+  });
+  $("#deleteImgEl").addEventListener("click", deleteSelected);
 }
 
 function deleteSelected() {
@@ -247,6 +270,47 @@ async function addText() {
   const el = makeText("Text", fontId, 8, 20);
   doc.elements.push(el);
   setSelection(el.id); // update() auto-fits and centers it (not userMoved yet)
+}
+
+function loadImg(src) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = rej;
+    img.src = src;
+  });
+}
+
+async function addImage(file) {
+  // Downscale on import: labels are 96px tall, so a 512px source is ample
+  // and keeps the persisted document well inside localStorage limits.
+  const rawUrl = await new Promise((res) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.readAsDataURL(file);
+  });
+  const src = await loadImg(rawUrl);
+  const down = Math.min(1, 512 / Math.max(src.width, src.height));
+  const dc = document.createElement("canvas");
+  dc.width = Math.max(1, Math.round(src.width * down));
+  dc.height = Math.max(1, Math.round(src.height * down));
+  dc.getContext("2d").drawImage(src, 0, 0, dc.width, dc.height);
+  const dataUrl = dc.toDataURL("image/png");
+
+  const availH = doc.tapeWidthPx - 2 * AUTO_MARGIN_PX;
+  const availW = getLengthPx() - 2 * AUTO_MARGIN_PX;
+  const scale = Math.min(availH / dc.height, availW / dc.width);
+  const w = Math.max(2, Math.round(dc.width * scale));
+  const h = Math.max(2, Math.round(dc.height * scale));
+  const el = makeImage(
+    dataUrl,
+    w,
+    h,
+    Math.round((getLengthPx() - w) / 2),
+    Math.round((doc.tapeWidthPx - h) / 2)
+  );
+  doc.elements.push(el);
+  setSelection(el.id);
 }
 
 async function doPrint() {
@@ -335,6 +399,12 @@ async function boot() {
   wireKeyboard();
 
   $("#addText").addEventListener("click", addText);
+  $("#addImage").addEventListener("click", () => $("#imageFile").click());
+  $("#imageFile").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) addImage(file);
+    e.target.value = ""; // allow re-adding the same file
+  });
   $("#printBtn").addEventListener("click", doPrint);
   $("#lengthMode").addEventListener("change", (e) => {
     doc.lengthMode = e.target.value;

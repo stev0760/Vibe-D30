@@ -107,6 +107,8 @@
   <header>
     <h1>D30 Labeler</h1>
     <button id="addText">+ Text</button>
+    <button id="addImage">+ Image</button>
+    <input type="file" id="imageFile" accept="image/*" hidden />
     <span class="spacer"></span>
     <span id="lengthReadout"></span>
     <span class="dot" id="statusDot"></span>
@@ -130,6 +132,17 @@
           <label><input type="checkbox" id="italicToggle" /> <i>I</i></label>
         </span></label>
         <button id="deleteEl" style="margin-top:6px">Delete element</button>
+      </section>
+      <section id="imageProps" style="display:none">
+        <h2>Image</h2>
+        <label class="row">Mode
+          <select id="imgMode" style="width:auto">
+            <option value="dither">dither (photos)</option>
+            <option value="threshold">threshold (line art)</option>
+          </select>
+        </label>
+        <label class="row">Level <input type="range" id="imgThreshold" min="1" max="254" value="128" style="flex:1" /></label>
+        <button id="deleteImgEl" style="margin-top:6px">Delete element</button>
       </section>
       <section>
         <h2>Elements</h2>

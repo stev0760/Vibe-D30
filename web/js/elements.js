@@ -2,6 +2,7 @@
 // All geometry is in document (printer-pixel) coordinates; drawing functions
 // receive a ctx already scaled so they can draw in doc coordinates directly.
 
+import { floydSteinberg, threshold } from "./dither.js";
 import { isLoaded } from "./fonts.js";
 
 let nextId = 1;
@@ -67,4 +68,51 @@ export function draw(ctx, el) {
 
 export function makeText(text, fontId, x, y, fontPx = 48) {
   return { id: newId(), type: "text", text, fontId, fontPx, autoSize: true, bold: false, italic: false, x, y };
+}
+
+export function makeImage(dataUrl, w, h, x, y) {
+  return { id: newId(), type: "image", dataUrl, w, h, x, y, mode: "dither", threshold: 128 };
+}
+
+// ---- image element bitmap cache --------------------------------------------
+// Each image element carries a pre-dithered pure-B/W bitmap at its current
+// size. Because it's already 1-bpp, the print canvas's global threshold pass
+// leaves it untouched — the dithering you see in the preview is exactly what
+// prints. Rebuilt whenever size/mode/level/source change.
+
+function imageSig(el) {
+  return `${el.w}x${el.h}|${el.mode}|${el.threshold}|${el.dataUrl.length}`;
+}
+
+export function ensureImageBitmap(el, onReady) {
+  const sig = imageSig(el);
+  if (el._sig === sig) return;
+  el._sig = sig;
+
+  const build = () => {
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, el.w);
+    c.height = Math.max(1, el.h);
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(el._img, 0, 0, c.width, c.height);
+    const data = ctx.getImageData(0, 0, c.width, c.height);
+    (el.mode === "dither" ? floydSteinberg : threshold)(data, el.threshold);
+    ctx.putImageData(data, 0, 0);
+    el._bitmap = c;
+    onReady();
+  };
+
+  if (el._img && el._img._src === el.dataUrl) {
+    build();
+  } else {
+    const img = new Image();
+    img.onload = () => {
+      img._src = el.dataUrl;
+      el._img = img;
+      build();
+    };
+    img.src = el.dataUrl;
+  }
 }
