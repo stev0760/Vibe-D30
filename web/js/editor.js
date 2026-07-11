@@ -7,7 +7,9 @@ import { defaultFontId, listFonts, loadFont } from "./fonts.js";
 const $ = (sel) => document.querySelector(sel);
 
 const DOTS_PER_MM = 8;
-const AUTO_MARGIN_PX = 6;
+// 1mm safe margin: these die-cut labels have rounded corners that
+// physically clip ink placed tighter than this (confirmed on a real print).
+const AUTO_MARGIN_PX = 8;
 const STORAGE_KEY = "d30doc";
 
 let doc = { tapeWidthPx: 96, lengthMode: "fixed", lengthMm: 40, elements: [] };
@@ -64,16 +66,26 @@ function restore() {
 function update() {
   // In fixed-length mode auto-size must respect the label length too, or
   // long strings overflow the right edge (the original PoC's clipping bug).
-  // The cap is the room right of the element's own x anchor, so a dragged
-  // element still fits. In auto-length mode the label grows instead, so
-  // height is the only cap.
+  // Until the user manually moves an element (userMoved), auto-sized text
+  // is also kept centered — otherwise a stale y from before a text edit
+  // leaves it pinned to an edge, where the label's rounded die-cut corners
+  // physically clip the ink (seen on a real print). For moved elements the
+  // width cap is the room right of their own x anchor instead.
   for (const el of doc.elements) {
     if (el.type === "text" && el.autoSize) {
-      const maxW =
-        doc.lengthMode === "fixed"
+      const fixed = doc.lengthMode === "fixed";
+      const fullW = doc.lengthMm * DOTS_PER_MM - 2 * AUTO_MARGIN_PX;
+      const maxW = !fixed
+        ? Infinity
+        : el.userMoved
           ? Math.max(8, doc.lengthMm * DOTS_PER_MM - AUTO_MARGIN_PX - el.x)
-          : Infinity;
+          : fullW;
       el.fontPx = autoFitFontPx(el, doc.tapeWidthPx - 2 * AUTO_MARGIN_PX, maxW);
+      if (!el.userMoved) {
+        const b = measure(el);
+        if (fixed) el.x = Math.max(AUTO_MARGIN_PX, Math.round((doc.lengthMm * DOTS_PER_MM - b.w) / 2));
+        el.y = Math.round((doc.tapeWidthPx - b.h) / 2);
+      }
     }
   }
   canvas.render();
@@ -234,11 +246,7 @@ async function addText() {
   await loadFont(fontId);
   const el = makeText("Text", fontId, 8, 20);
   doc.elements.push(el);
-  setSelection(el.id); // triggers update(), which computes autoSize fontPx
-  const b = measure(el);
-  el.x = Math.round((getLengthPx() - b.w) / 2);
-  el.y = Math.round((doc.tapeWidthPx - b.h) / 2);
-  update();
+  setSelection(el.id); // update() auto-fits and centers it (not userMoved yet)
 }
 
 async function doPrint() {
@@ -298,10 +306,10 @@ function wireKeyboard() {
     if (!el) return;
     const step = e.shiftKey ? 10 : 1;
     if (e.key === "Delete" || e.key === "Backspace") deleteSelected();
-    else if (e.key === "ArrowLeft") el.x -= step;
-    else if (e.key === "ArrowRight") el.x += step;
-    else if (e.key === "ArrowUp") el.y -= step;
-    else if (e.key === "ArrowDown") el.y += step;
+    else if (e.key === "ArrowLeft") { el.x -= step; el.userMoved = true; }
+    else if (e.key === "ArrowRight") { el.x += step; el.userMoved = true; }
+    else if (e.key === "ArrowUp") { el.y -= step; el.userMoved = true; }
+    else if (e.key === "ArrowDown") { el.y += step; el.userMoved = true; }
     else return;
     e.preventDefault();
     update();

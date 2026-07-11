@@ -142,6 +142,7 @@ export class LabelCanvas {
     if (d.mode === "move") {
       d.el.x = Math.round(p.x - d.offX);
       d.el.y = Math.round(p.y - d.offY);
+      d.el.userMoved = true; // hand position control to the user from now on
     } else if (d.mode === "resize") {
       const scale = Math.max(0.05, (d.startBox.h + (p.y - d.startY)) / d.startBox.h);
       if (d.el.type === "text") {
