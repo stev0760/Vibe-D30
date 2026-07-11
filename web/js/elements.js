@@ -60,7 +60,12 @@ export function draw(ctx, el) {
     ctx.textBaseline = "alphabetic";
     ctx.fillText(el.text, el.x + m.left, el.y + m.ascent);
   } else if ((el.type === "image" || el.type === "icon") && el._bitmap) {
+    // Multiply: ink accumulates. The bitmap's white background multiplies to
+    // identity, so an element's bounding box doesn't erase what's under it.
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
     ctx.drawImage(el._bitmap, el.x, el.y, el.w, el.h);
+    ctx.restore();
   }
 }
 
