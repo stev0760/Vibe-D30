@@ -4,48 +4,55 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A from-scratch Linux driver for the Phomemo D30, a cheap BLE-only thermal
-label maker whose official app is Android/iOS only. There is no vendor
-Linux/USB support at all — everything here was reverse-engineered by
-scanning the device directly and cross-referencing the result against
-prior open-source work on the same printer. See `README.md` for status
-and `docs/hardware.md` / `docs/ble.md` for the full writeup of how each
-fact was established.
+A from-scratch Linux driver **and local web app (WYSIWYG label editor)**
+for the Phomemo D30, a cheap BLE-only thermal label maker whose official
+app is Android/iOS only. There is no vendor Linux/USB support at all —
+everything here was reverse-engineered by scanning the device directly
+and cross-referencing the result against prior open-source work on the
+same printer. See `README.md` for status and `docs/hardware.md` /
+`docs/ble.md` for the full writeup of how each fact was established.
 
-Device identity (hardcoded as `ADDRESS` at the top of each script):
-BLE MAC `XX:XX:XX:XX:XX:XX`, BLE name `D30`. Currently only one 12mm×40mm
-tape is on hand, so label dimensions are also hardcoded/CLI-argument
-rather than auto-detected.
+Device identity (default in `d30/transport.py`, overridable via
+`D30_ADDRESS` for the server / `--address` for the CLI): BLE MAC
+`XX:XX:XX:XX:XX:XX`, BLE name `D30`. Currently only one 12mm×40mm
+die-cut tape is on hand; tape width is parameterized in
+`d30/protocol.py` but only 96px/12mm is tested.
 
 ## Commands
 
 ```
 python3 -m venv .venv
-.venv/bin/pip install bleak pillow
+.venv/bin/pip install bleak pillow fastapi uvicorn
 
-# Dump the device's full GATT service/characteristic table
+# Web editor (http://127.0.0.1:8330). D30_DRY_RUN=1 forces every print
+# request to dry-run — use it for all UI development.
+D30_DRY_RUN=1 .venv/bin/uvicorn server.app:app --port 8330
+
+# CLI. Dry run by default; --live actually prints (consumes a label).
+.venv/bin/python -m d30 "Some text" --length-mm 40
+.venv/bin/python -m d30 "Some text" --length-mm 40 --live
+
+# Recon scripts (GATT table dump / read-only probe)
 .venv/bin/python scripts/gatt_enum.py
-
-# Read-only probe: reads ff01, subscribes to ff03 notifications, sends no writes
 .venv/bin/python scripts/gatt_probe.py
-
-# Render + pack a label and print it. Defaults to a dry run (prints byte
-# sizes/header/footer, touches nothing); --live actually connects and
-# prints (consumes a real label)
-.venv/bin/python scripts/print_test.py "Some text" --length-mm 40
-.venv/bin/python scripts/print_test.py "Some text" --length-mm 40 --live
 ```
 
-There is no test suite, linter, or build step — this is exploratory
-hardware reverse-engineering, not an application with CI.
+There is no test suite, linter, or build step (the web frontend is
+buildless vanilla ES modules). UI changes are verified by driving the
+editor headlessly with Playwright (`.venv/bin/pip install playwright`,
+chromium already downloaded) against a `D30_DRY_RUN=1` server —
+screenshot the preview strip and check `pageerror` events; see the
+honest-preview note under Architecture.
 
-### Before running any script against the physical device
+### Before touching the physical device
 
-Check `bluetoothctl info XX:XX:XX:XX:XX:XX | grep Connected` first. If it
-says `Connected: yes` without you having connected anything, BlueZ has
-auto-reconnected it in the background (see Gotchas below) and a fresh
-scan will spuriously fail with "device not found". Run
-`bluetoothctl disconnect XX:XX:XX:XX:XX:XX` before retrying.
+The `d30` transport (and therefore the CLI and server) automatically
+runs `bluetoothctl disconnect` before scanning, working around the BlueZ
+auto-reconnect race (see Gotchas). The bare recon scripts in `scripts/`
+do NOT — for those, check
+`bluetoothctl info XX:XX:XX:XX:XX:XX | grep Connected` first and
+disconnect manually if it says yes. A live print consumes a physical
+label; always dry-run first and ask the user before burning one.
 
 ## Architecture
 
@@ -82,20 +89,51 @@ proprietary "magic" init sequence (`1f 11 ..`) first; our unit doesn't
 answer on RFCOMM at all, and the magic bytes appear unnecessary over
 GATT (web-bluetooth implementation skips them and works).
 
-**Image geometry**: canvas is built and packed at `(label_width_px=96,
+**Code layout**: `d30/` is the Python library — `protocol.py` (framing +
+1-bpp packing, tape width parameterized), `transport.py` (bleak
+scan/connect/chunked-write; best-effort `bluetoothctl disconnect` first,
+see Gotchas), `render.py` (PIL text rendering for the CLI), `cli.py`
+(`python -m d30`). `server/app.py` (FastAPI) serves `web/` and the API;
+`scripts/` keeps the original recon tools. `scripts/print_test.py` is a
+deprecated forwarding wrapper kept so docs/ble.md history stays valid.
+
+**Image geometry**: everything is packed at `(label_width_px=96,
 label_length_px)`, i.e. 96px (12mm × 8 dots/mm) is the fixed dimension
 matching the tape width, and label length is whatever the content needs.
-`render_label()` in `print_test.py` draws sideways at
-`(length_px, 96)` and rotates 90° at the end, purely so normal-orientation
-text is easy to lay out with PIL before rotating into the printer's
-actual raster order — the printer itself has no separate "orientation"
-concept, it just wants `96px`-wide rows.
+Both render paths draw "unrolled" landscape at `(length_px, 96)` and
+rotate 90° at the end — normal-orientation layout first, then into the
+printer's raster order. The printer has no "orientation" concept, it
+just wants 96px-wide rows.
 
-**Auto-fit sizing**: font size is *not* a fixed constant — it's computed
-by measuring the text at a reference size and scaling to whichever of
-width/height is more constraining (see `render_label()`). A fixed-size
-approach was tried first and clipped longer strings; don't regress to
-that.
+**The client renders; the server packs and prints.** The web editor's
+HTML canvas is the single source of truth for pixels: at print time the
+browser renders the label at true 1x, forces it to 1-bpp, and POSTs a
+PNG to `/api/print`; the server only rotates/packs it (same `d30`
+functions as the CLI) and sends BLE. There is deliberately NO
+server-side re-render of editor documents — one renderer, no preview
+drift. The preview strip in the UI is that same 1x 1-bpp canvas scaled
+up pixelated; it is pixel-for-pixel what prints, and it has caught every
+layout bug so far — trust it over the pretty zoomed editing canvas.
+
+**Fonts**: browsers can't enumerate system fonts, so the server lists
+them via `fc-list` (`/api/fonts`) and serves the binaries
+(`/api/fonts/{id}/file`); the client loads each picked font with the
+FontFace API under its server id as the family name.
+
+**Auto-fit sizing**: font size is *not* a fixed constant — measured at a
+reference size and scaled to the more constraining of height/width
+(`render.py` for the CLI; `autoFitFontPx` + the userMoved/centering
+logic in `web/js/editor.js` for the editor). Fixed-size approaches
+clipped real prints twice (too long for the label; pinned to an edge so
+the label's rounded die-cut corner clipped the ink) — don't regress.
+Keep at least the 1mm (`AUTO_MARGIN_PX = 8`) safe margin.
+
+**Image/icon elements** carry a cached pre-dithered pure-B/W bitmap at
+their current size (`ensureImageBitmap`), so the print canvas's global
+threshold pass leaves them untouched — dithering shown in the preview is
+exactly what prints. Icons are image elements whose source is an SVG
+data-URL (vendored Lucide set in `web/icons.json`), re-rasterized crisply
+by the browser at any size.
 
 ## Gotchas
 
