@@ -31,7 +31,7 @@ Paired/Bonded/Trusted: yes (stale BlueZ cache from earlier attempts — not requ
 UUID: Serial Port               (00001101-...)   <- misleading, not actually usable
 UUID: Human Interface Device    (00001812-...)
 UUID: Unknown                   (0000af30-...)
-ManufacturerData 0x0000: xx xx xx xx xx xx            (device's own MAC, repeated)
+ManufacturerData 0x0000: <the device's own MAC, 6 bytes>
 ManufacturerData 0x7262: 32 32 78 78 11 22 33 44 55 66 aa bb 00 00
 ```
 

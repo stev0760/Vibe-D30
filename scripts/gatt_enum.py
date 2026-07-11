@@ -5,12 +5,16 @@ import sys
 
 from bleak import BleakClient, BleakScanner
 
-ADDRESS = "XX:XX:XX:XX:XX:XX"
+NAME = "D30"  # pass a MAC via argv[1] to pin a unit
 
 
 async def main():
-    print(f"Scanning for {ADDRESS} ...")
-    device = await BleakScanner.find_device_by_address(ADDRESS, timeout=15.0)
+    print(f"Scanning for {NAME} ...")
+    import sys
+    if len(sys.argv) > 1:
+        device = await BleakScanner.find_device_by_address(sys.argv[1], timeout=15.0)
+    else:
+        device = await BleakScanner.find_device_by_name(NAME, timeout=15.0)
     if device is None:
         print("Device not found during scan. Is it powered on / in range?")
         sys.exit(1)

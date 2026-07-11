@@ -2,9 +2,8 @@
 
 ## Regulatory label
 
-Photographed clearly in `docs/images/IMG_9241.HEIC` (phone camera; earlier
-webcam photos in this folder were too motion-blurred to read and are kept
-only for reference).
+Full sticker data (regulatory plate + decoded QR) is in
+[device-label.md](device-label.md).
 
 ```
 Phomemo (R)
@@ -24,23 +23,11 @@ are known to share very similar (sometimes identical) BLE protocols.
 
 ## "Need Help? Scan Me" QR code
 
-Decoded (via `zbarimg` on the sharp phone photo — the webcam photos were
-too blurry for any decoder):
-
-```
-https://ms.phomemo.com/?mo=D30&mac=XXXXXXXXXXXX&SN=XXXXXXXXXXXXXXX
-```
-
-Query parameters:
-
-- `mo=D30` — model, confirms the label
-- `mac=XXXXXXXXXXXX` — the device's BLE MAC address, **no scanning
-  required** to find it again
-- `SN=XXXXXXXXXXXXXXX` — unit serial number
-
-This single QR code is effectively worth more than the regulatory label:
-it hands us the exact BLE address to target directly instead of relying
-on discovery.
+The support QR on the unit encodes
+`https://ms.phomemo.com/?mo=D30&mac=<MAC>&SN=<serial>` — see
+[device-label.md](device-label.md). The `mac` parameter is the unit's
+BLE MAC address: the QR alone hands you the exact address to target,
+no discovery scan required.
 
 ## USB behavior
 

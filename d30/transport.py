@@ -13,7 +13,12 @@ from bleak.exc import BleakDBusError
 
 from .protocol import CHUNK_SIZE, TAPE_WIDTH_PX, build_packet
 
-DEFAULT_ADDRESS = "XX:XX:XX:XX:XX:XX"
+# Discovery is by advertised BLE name by default; pass an explicit MAC
+# (CLI --address / D30_ADDRESS env) to pin a specific unit, e.g. with
+# several printers in range. The MAC is printed in the unit's support QR
+# code (see docs/device-label.md).
+DEVICE_NAME = "D30"
+DEFAULT_ADDRESS = None
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
 WRITE_CHAR = "0000ff02-0000-1000-8000-00805f9b34fb"
 NOTIFY_CHAR = "0000ff03-0000-1000-8000-00805f9b34fb"
@@ -29,8 +34,9 @@ class PrinterNotFound(Exception):
     pass
 
 
-async def _connect(address: str, scan_timeout: float) -> BleakClient:
-    """Find the printer and return a connected client.
+async def _connect(address: str | None, scan_timeout: float) -> BleakClient:
+    """Find the printer (by MAC if given, else by BLE name) and return a
+    connected client.
 
     Never disconnect the device from BlueZ first: if BlueZ auto-connected it
     (bonded + trusted), that LE link is a *good* thing — bleak attaches to it
@@ -45,11 +51,15 @@ async def _connect(address: str, scan_timeout: float) -> BleakClient:
     """
     last_error: Exception | None = None
     for attempt in range(3):
-        device = await BleakScanner.find_device_by_address(address, timeout=scan_timeout)
+        if address:
+            device = await BleakScanner.find_device_by_address(address, timeout=scan_timeout)
+        else:
+            device = await BleakScanner.find_device_by_name(DEVICE_NAME, timeout=scan_timeout)
         if device is None:
             raise PrinterNotFound(
-                f"{address} not found. Is the printer awake and in range? "
-                "It sleeps after a few idle minutes — press its power button."
+                f"{address or DEVICE_NAME!r} not found. Is the printer awake and "
+                "in range? It sleeps after a few idle minutes — press its "
+                "power button."
             )
         client = BleakClient(device)
         try:
@@ -61,8 +71,8 @@ async def _connect(address: str, scan_timeout: float) -> BleakClient:
             last_error = e
             await asyncio.sleep(3)  # let BlueZ auto-connect win, then attach
     raise PrinterNotFound(
-        f"{address} found, but BlueZ keeps trying the classic Bluetooth "
-        f"bearer this LE-only printer doesn't have ({_BREDR_ERROR}). "
+        f"{address or DEVICE_NAME!r} found, but BlueZ keeps trying the classic "
+        f"Bluetooth bearer this LE-only printer doesn't have ({_BREDR_ERROR}). "
         "Fix the stored device record: see docs/ble.md 'bearer selection'."
     ) from last_error
 
@@ -70,7 +80,7 @@ async def _connect(address: str, scan_timeout: float) -> BleakClient:
 async def send_raster(
     data: bytes,
     width_px: int = TAPE_WIDTH_PX,
-    address: str = DEFAULT_ADDRESS,
+    address: str | None = DEFAULT_ADDRESS,
     copies: int = 1,
     scan_timeout: float = 15.0,
     progress=None,

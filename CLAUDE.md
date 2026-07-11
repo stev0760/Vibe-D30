@@ -12,9 +12,10 @@ and cross-referencing the result against prior open-source work on the
 same printer. See `README.md` for status and `docs/hardware.md` /
 `docs/ble.md` for the full writeup of how each fact was established.
 
-Device identity (default in `d30/transport.py`, overridable via
-`D30_ADDRESS` for the server / `--address` for the CLI): BLE MAC
-`XX:XX:XX:XX:XX:XX`, BLE name `D30`. Currently only one 12mm×40mm
+The printer is discovered by its BLE name `D30` (`DEVICE_NAME` in
+`d30/transport.py`); a specific unit can be pinned via `D30_ADDRESS`
+for the server / `--address` for the CLI (the MAC is in each unit's
+support QR — `docs/device-label.md`). Currently only one 12mm×40mm
 die-cut tape is on hand; tape width is parameterized in
 `d30/protocol.py` but only 96px/12mm is tested.
 
@@ -176,9 +177,7 @@ by the browser at any size.
 - **The printer sleeps after a few idle minutes** and stops advertising;
   scans then legitimately find nothing. Press its power button — don't
   debug Bluetooth.
-- Photos/QR codes of the physical label are in `docs/images/`; the two
-  webcam-captured ones are motion-blurred and kept only for reference —
-  `IMG_9241.HEIC` (phone camera) is the sharp one everything was actually
-  read from, including the QR-encoded MAC/serial.
+- The unit's sticker data (decoded QR with MAC/serial, regulatory plate)
+  is recorded in `docs/device-label.md`.
 - `enhanced/` and `.venv/` are gitignored scratch/generated output, not
   part of the actual project.

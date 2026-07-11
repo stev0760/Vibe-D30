@@ -5,7 +5,7 @@ import asyncio
 
 from .protocol import build_packet, pack_raster
 from .render import render_label
-from .transport import DEFAULT_ADDRESS, PrinterNotFound, send_raster
+from .transport import DEFAULT_ADDRESS, DEVICE_NAME, PrinterNotFound, send_raster
 
 
 def main(argv=None):
@@ -18,7 +18,9 @@ def main(argv=None):
         "--length-mm", type=int, default=40, help="Label length in mm (default: 40)"
     )
     parser.add_argument(
-        "--address", default=DEFAULT_ADDRESS, help="Printer BLE MAC address"
+        "--address",
+        default=DEFAULT_ADDRESS,
+        help=f"Printer BLE MAC address (default: discover by name {DEVICE_NAME!r})",
     )
     parser.add_argument("--copies", type=int, default=1)
     parser.add_argument(

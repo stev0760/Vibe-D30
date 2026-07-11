@@ -6,7 +6,7 @@ import asyncio
 
 from bleak import BleakClient, BleakScanner
 
-ADDRESS = "XX:XX:XX:XX:XX:XX"
+NAME = "D30"  # pass a MAC via argv[1] to pin a unit
 FF01 = "0000ff01-0000-1000-8000-00805f9b34fb"
 FF03 = "0000ff03-0000-1000-8000-00805f9b34fb"
 GENERIC_NAME = "00002a00-0000-1000-8000-00805f9b34fb"
@@ -17,7 +17,11 @@ def notify_handler(sender, data):
 
 
 async def main():
-    device = await BleakScanner.find_device_by_address(ADDRESS, timeout=15.0)
+    import sys
+    if len(sys.argv) > 1:
+        device = await BleakScanner.find_device_by_address(sys.argv[1], timeout=15.0)
+    else:
+        device = await BleakScanner.find_device_by_name(NAME, timeout=15.0)
     if device is None:
         print("Device not found.")
         return

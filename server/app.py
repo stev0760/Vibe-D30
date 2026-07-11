@@ -2,7 +2,7 @@
 
 Run:  .venv/bin/uvicorn server.app:app --port 8330
 Env:  D30_DRY_RUN=1 forces every print request to dry-run (dev mode),
-      D30_ADDRESS overrides the printer MAC.
+      D30_ADDRESS pins a specific printer MAC (default: discover by BLE name).
 
 The browser does all label rendering (see web/); this server only
 enumerates/serves fonts, packs the client's PNG into printer raster
@@ -32,12 +32,12 @@ from d30.protocol import (  # noqa: E402
     build_packet,
     pack_raster,
 )
-from d30.transport import DEFAULT_ADDRESS, PrinterNotFound, send_raster  # noqa: E402
+from d30.transport import DEVICE_NAME, PrinterNotFound, send_raster  # noqa: E402
 
 from PIL import Image  # noqa: E402
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
-ADDRESS = os.environ.get("D30_ADDRESS", DEFAULT_ADDRESS)
+ADDRESS = os.environ.get("D30_ADDRESS") or None  # None = discover by BLE name
 FORCE_DRY_RUN = os.environ.get("D30_DRY_RUN", "") not in ("", "0")
 OFFSET_MM = float(os.environ.get("D30_OFFSET_MM", PRINT_START_OFFSET_MM))
 
@@ -118,10 +118,10 @@ def font_file(font_id: str):
 @app.get("/api/printer/status")
 def printer_status():
     connected = None
-    if sys.platform.startswith("linux"):
+    if ADDRESS and sys.platform.startswith("linux"):
         try:
             out = subprocess.run(
-                ["bluetoothctl", "info", ADDRESS],
+                ["bluetoothctl", "info", ADDRESS],  # only meaningful when pinned
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -130,7 +130,7 @@ def printer_status():
         except (OSError, subprocess.TimeoutExpired):
             pass
     return {
-        "address": ADDRESS,
+        "address": ADDRESS or f"auto ({DEVICE_NAME})",
         "bluezConnected": connected,
         "forceDryRun": FORCE_DRY_RUN,
         "offsetMm": OFFSET_MM,

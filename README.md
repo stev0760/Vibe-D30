@@ -81,15 +81,16 @@ install chromium`, then run it against a `D30_DRY_RUN=1` server.
 - `server/app.py` — FastAPI: serves the editor, enumerates/serves system
   fonts, packs client PNGs and prints them
 - `web/` — the editor (buildless vanilla ES modules + canvas)
-- `docs/` — hardware/BLE reverse-engineering writeups + reference photos
+- `docs/` — hardware/BLE reverse-engineering writeups
 - `scripts/` — recon + calibration tools, UI regression sweep
 
-## Device identity (the unit this was developed against)
+## Device identity
 
-- Model: Phomemo D30 (HVIN D30B)
-- BLE name: `D30`, MAC `XX:XX:XX:XX:XX:XX`
-- FCC ID: `2ASRB-D30C`, IC: `29002-D30A`
-- Serial: `XXXXXXXXXXXXXXX`
+Developed against a Phomemo D30 (HVIN D30B, FCC ID `2ASRB-D30C`,
+IC `29002-D30A`), BLE name `D30`. The driver discovers the printer by
+that name; pin a specific unit with `--address` / `D30_ADDRESS` (your
+unit's MAC is in its support QR code — see
+[docs/device-label.md](docs/device-label.md)).
 
 ## License & prior art
 
