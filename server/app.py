@@ -25,7 +25,13 @@ from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from d30.protocol import TAPE_WIDTH_PX, build_packet, pack_raster  # noqa: E402
+from d30.protocol import (  # noqa: E402
+    PRINT_START_OFFSET_MM,
+    TAPE_WIDTH_PX,
+    apply_start_offset,
+    build_packet,
+    pack_raster,
+)
 from d30.transport import DEFAULT_ADDRESS, PrinterNotFound, send_raster  # noqa: E402
 
 from PIL import Image  # noqa: E402
@@ -33,6 +39,7 @@ from PIL import Image  # noqa: E402
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 ADDRESS = os.environ.get("D30_ADDRESS", DEFAULT_ADDRESS)
 FORCE_DRY_RUN = os.environ.get("D30_DRY_RUN", "") not in ("", "0")
+OFFSET_MM = float(os.environ.get("D30_OFFSET_MM", PRINT_START_OFFSET_MM))
 
 FONT_EXTENSIONS = {".ttf", ".otf", ".ttc", ".woff", ".woff2"}
 FONT_MEDIA_TYPES = {
@@ -125,6 +132,7 @@ def printer_status():
         "address": ADDRESS,
         "bluezConnected": connected,
         "forceDryRun": FORCE_DRY_RUN,
+        "offsetMm": OFFSET_MM,
         "lastPrint": _last_print,
     }
 
@@ -145,8 +153,9 @@ async def print_label(req: PrintRequest):
         )
     copies = max(1, min(req.copies, 10))
 
-    # Same transform as the CLI path: unrolled landscape -> tape raster order.
-    raster_img = img.convert("L").rotate(90, expand=True)
+    # Same transform as the CLI path: print-start offset compensation, then
+    # unrolled landscape -> tape raster order.
+    raster_img = apply_start_offset(img.convert("L"), OFFSET_MM).rotate(90, expand=True)
     data = pack_raster(raster_img)
     header, footer = build_packet(data)
 

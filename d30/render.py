@@ -2,7 +2,7 @@
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .protocol import DOTS_PER_MM, TAPE_WIDTH_PX
+from .protocol import DOTS_PER_MM, TAPE_WIDTH_PX, apply_start_offset
 
 
 def render_label(
@@ -46,4 +46,4 @@ def render_label(
     x = (height_px - tw) / 2 - bbox[0]
     y = (width_px - th) / 2 - bbox[1]
     draw.text((x, y), text, fill=0, font=font)
-    return canvas.rotate(90, expand=True)
+    return apply_start_offset(canvas).rotate(90, expand=True)

@@ -134,7 +134,9 @@ async def main():
         await page.click("#printBtn")
         status = await wait_print_done(page)
         check("dry-run print (text)", "dry run ok" in status, status.strip())
-        check("header bytes 40mm/12mm", "1b401d7630000c004001" in status)
+        # 40mm label = 320 rows + 16 rows of print-start offset (2mm,
+        # d30.protocol.PRINT_START_OFFSET_MM) = 336 rows = 0x0150 LE
+        check("header bytes 40mm/12mm+offset", "1b401d7630000c005001" in status, status.strip())
 
         # --- showcase: icon + text + dithered gradient image -------------------
         await page.evaluate("localStorage.removeItem('d30doc'); location.reload()")

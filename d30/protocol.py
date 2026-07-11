@@ -12,6 +12,31 @@ TAPE_WIDTH_MM = 12  # the D30's tape; parameterized so other sizes can follow
 TAPE_WIDTH_PX = TAPE_WIDTH_MM * DOTS_PER_MM  # 96px = 12 bytes/row
 CHUNK_SIZE = 128  # bytes per BLE write; transport-friendliness, not protocol
 
+# The firmware starts its print pass ~2mm late relative to the die-cut
+# label's leading edge, so unshifted output lands 2mm toward the label's
+# left (reading orientation) with the leftmost content cut off. Measured
+# with scripts/calibrate_offset.py on 12x40mm die-cut tape (2026-07-11);
+# the label has spare room on the right, so compensating is lossless.
+PRINT_START_OFFSET_MM = 2.0
+
+
+def apply_start_offset(
+    img: Image.Image, offset_mm: float = PRINT_START_OFFSET_MM
+) -> Image.Image:
+    """Pad blank columns on the left of a landscape label image.
+
+    Print-time compensation for the firmware's late print start: content
+    shifts right on the physical label; the extra feed at the end of the
+    pass lands in the die-cut gap. Editors/previews should NOT apply this —
+    it maps the designed label onto the physical one.
+    """
+    px = round(offset_mm * DOTS_PER_MM)
+    if px <= 0:
+        return img
+    out = Image.new("L", (img.width + px, img.height), 255)
+    out.paste(img.convert("L"), (px, 0))
+    return out
+
 
 def pack_raster(img: Image.Image, width_px: int = TAPE_WIDTH_PX) -> bytes:
     """Pack a PIL image (mode-agnostic, thresholded at 128) into 1-bpp rows.

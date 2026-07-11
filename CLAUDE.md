@@ -111,6 +111,17 @@ rotate 90° at the end — normal-orientation layout first, then into the
 printer's raster order. The printer has no "orientation" concept, it
 just wants 96px-wide rows.
 
+**Print-start offset**: the firmware begins its pass ~2mm late relative
+to the die-cut label's leading edge, so uncompensated output lands 2mm
+toward the label's left with that much cut off. Both print paths run the
+landscape image through `apply_start_offset` (`d30/protocol.py`,
+`PRINT_START_OFFSET_MM = 2.0`, server override `D30_OFFSET_MM`) right
+before rotation — pads blank columns on the left, extra feed lands in
+the die-cut gap. The editor/preview never applies it (it maps the design
+onto the physical label). Calibrated with `scripts/calibrate_offset.py`
+(prints a ruler; deliberately uncompensated) — re-run it if labels from
+a different batch look shifted.
+
 **The client renders; the server packs and prints.** The web editor's
 HTML canvas is the single source of truth for pixels: at print time the
 browser renders the label at true 1x, forces it to 1-bpp, and POSTs a
