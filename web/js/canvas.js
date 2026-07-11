@@ -4,13 +4,16 @@
 // view. Print canvas: rendered at true 1x and forced to 1-bpp — the honest
 // view; its pixels are exactly what gets printed. The preview strip shows
 // the print canvas scaled up with image-rendering: pixelated.
+//
+// Zoom is not fixed: each render fits the label into the canvas area, so the
+// whole label — including the selection's resize handle — is always on
+// screen, on any window size. Same for the preview strip's integer scale.
 
 import { draw, measure } from "./elements.js";
 import { threshold } from "./dither.js";
 
-export const ZOOM = 5;
-const PREVIEW_SCALE = 3;
-const HANDLE_PX = 12; // screen px
+const HANDLE_PX = 14; // screen px
+const AREA_PAD = 16; // breathing room inside #canvasArea
 
 export class LabelCanvas {
   constructor(editCanvas, previewCanvas, callbacks) {
@@ -18,28 +21,54 @@ export class LabelCanvas {
     this.preview = previewCanvas;
     this.cb = callbacks; // { onSelect(id), onChange(), getDoc(), getSelection(), getLengthPx() }
     this._drag = null;
+    this.zoom = 4; // recomputed every render
 
     editCanvas.addEventListener("pointerdown", (e) => this._pointerDown(e));
     editCanvas.addEventListener("pointermove", (e) => this._pointerMove(e));
     editCanvas.addEventListener("pointerup", (e) => this._pointerUp(e));
+
+    // Refit when the window/panel geometry changes.
+    this._lastFit = "";
+    new ResizeObserver(() => {
+      const area = this.edit.parentElement;
+      const fit = `${area.clientWidth}x${area.clientHeight}`;
+      if (fit !== this._lastFit) {
+        this._lastFit = fit;
+        this.render();
+      }
+    }).observe(this.edit.parentElement);
   }
 
   // ---- rendering ----------------------------------------------------------
+
+  _fitZoom(lengthPx, H) {
+    const area = this.edit.parentElement;
+    const availW = Math.max(80, area.clientWidth - 2 * AREA_PAD);
+    const availH = Math.max(60, area.clientHeight - 2 * AREA_PAD);
+    return Math.max(0.5, Math.min(10, availW / lengthPx, availH / H));
+  }
 
   render() {
     const doc = this.cb.getDoc();
     const lengthPx = this.cb.getLengthPx();
     const H = doc.tapeWidthPx;
+    const zoom = (this.zoom = this._fitZoom(lengthPx, H));
 
-    // Editing canvas
+    // Editing canvas: backing store at devicePixelRatio for crisp text.
     const c = this.edit;
-    c.width = lengthPx * ZOOM;
-    c.height = H * ZOOM;
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = Math.round(lengthPx * zoom);
+    const cssH = Math.round(H * zoom);
+    c.width = Math.round(cssW * dpr);
+    c.height = Math.round(cssH * dpr);
+    c.style.width = `${cssW}px`;
+    c.style.height = `${cssH}px`;
     const ctx = c.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS px from here on
     ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillRect(0, 0, cssW, cssH);
     ctx.save();
-    ctx.scale(ZOOM, ZOOM);
+    ctx.scale(zoom, zoom);
     for (const el of doc.elements) draw(ctx, el);
     ctx.restore();
 
@@ -50,23 +79,33 @@ export class LabelCanvas {
       ctx.strokeStyle = "#2563eb";
       ctx.lineWidth = 1.5;
       ctx.setLineDash([6, 4]);
-      ctx.strokeRect(b.x * ZOOM - 2, b.y * ZOOM - 2, b.w * ZOOM + 4, b.h * ZOOM + 4);
+      ctx.strokeRect(b.x * zoom - 2, b.y * zoom - 2, b.w * zoom + 4, b.h * zoom + 4);
       ctx.setLineDash([]);
+      // Resize handle: filled square with a white outline so it reads over ink
+      const hx = (b.x + b.w) * zoom - HANDLE_PX / 2;
+      const hy = (b.y + b.h) * zoom - HANDLE_PX / 2;
       ctx.fillStyle = "#2563eb";
-      ctx.fillRect(
-        (b.x + b.w) * ZOOM - HANDLE_PX / 2,
-        (b.y + b.h) * ZOOM - HANDLE_PX / 2,
-        HANDLE_PX,
-        HANDLE_PX
-      );
+      ctx.fillRect(hx, hy, HANDLE_PX, HANDLE_PX);
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(hx, hy, HANDLE_PX, HANDLE_PX);
     }
 
-    // Preview strip = the real print pixels
+    // Preview strip = the real print pixels, integer-scaled to the room it has
     const printCanvas = this.renderPrintCanvas();
+    const wrap = this.preview.parentElement;
+    const scale = Math.max(
+      1,
+      Math.min(
+        3,
+        Math.floor((wrap.clientWidth - 4) / printCanvas.width) || 1,
+        Math.floor((window.innerHeight * 0.28) / printCanvas.height) || 1
+      )
+    );
     this.preview.width = printCanvas.width;
     this.preview.height = printCanvas.height;
-    this.preview.style.width = `${printCanvas.width * PREVIEW_SCALE}px`;
-    this.preview.style.height = `${printCanvas.height * PREVIEW_SCALE}px`;
+    this.preview.style.width = `${printCanvas.width * scale}px`;
+    this.preview.style.height = `${printCanvas.height * scale}px`;
     this.preview.getContext("2d").drawImage(printCanvas, 0, 0);
   }
 
@@ -99,45 +138,56 @@ export class LabelCanvas {
 
   _docPos(e) {
     const r = this.edit.getBoundingClientRect();
-    return { x: (e.clientX - r.left) / ZOOM, y: (e.clientY - r.top) / ZOOM };
+    return { x: (e.clientX - r.left) / this.zoom, y: (e.clientY - r.top) / this.zoom };
+  }
+
+  _onHandle(p, sel) {
+    const b = measure(sel);
+    const hx = (b.x + b.w) * this.zoom;
+    const hy = (b.y + b.h) * this.zoom;
+    return Math.abs(p.x * this.zoom - hx) <= HANDLE_PX && Math.abs(p.y * this.zoom - hy) <= HANDLE_PX;
+  }
+
+  _hitTest(p) {
+    const doc = this.cb.getDoc();
+    for (let i = doc.elements.length - 1; i >= 0; i--) {
+      const el = doc.elements[i];
+      const b = measure(el);
+      if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) return el;
+    }
+    return null;
   }
 
   _pointerDown(e) {
-    const doc = this.cb.getDoc();
     const p = this._docPos(e);
 
     // Resize handle of current selection first
     const sel = this._selected();
-    if (sel) {
-      const b = measure(sel);
-      const hx = (b.x + b.w) * ZOOM;
-      const hy = (b.y + b.h) * ZOOM;
-      const sx = p.x * ZOOM;
-      const sy = p.y * ZOOM;
-      if (Math.abs(sx - hx) <= HANDLE_PX && Math.abs(sy - hy) <= HANDLE_PX) {
-        this._drag = { mode: "resize", el: sel, startY: p.y, startBox: b, startFontPx: sel.fontPx };
-        this.edit.setPointerCapture(e.pointerId);
-        return;
-      }
+    if (sel && this._onHandle(p, sel)) {
+      this._drag = { mode: "resize", el: sel, startY: p.y, startBox: measure(sel), startFontPx: sel.fontPx };
+      this.edit.setPointerCapture(e.pointerId);
+      return;
     }
 
-    // Hit test top-down (last element = topmost)
-    for (let i = doc.elements.length - 1; i >= 0; i--) {
-      const el = doc.elements[i];
-      const b = measure(el);
-      if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
-        this.cb.onSelect(el.id);
-        this._drag = { mode: "move", el, offX: p.x - el.x, offY: p.y - el.y };
-        this.edit.setPointerCapture(e.pointerId);
-        return;
-      }
+    const el = this._hitTest(p);
+    if (el) {
+      this.cb.onSelect(el.id);
+      this._drag = { mode: "move", el, offX: p.x - el.x, offY: p.y - el.y };
+      this.edit.setPointerCapture(e.pointerId);
+      return;
     }
     this.cb.onSelect(null);
   }
 
   _pointerMove(e) {
-    if (!this._drag) return;
     const p = this._docPos(e);
+    if (!this._drag) {
+      // Hover feedback: make the handle and draggable elements discoverable.
+      const sel = this._selected();
+      this.edit.style.cursor =
+        sel && this._onHandle(p, sel) ? "nwse-resize" : this._hitTest(p) ? "move" : "default";
+      return;
+    }
     const d = this._drag;
     if (d.mode === "move") {
       d.el.x = Math.round(p.x - d.offX);

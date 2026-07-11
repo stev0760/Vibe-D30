@@ -32,23 +32,25 @@
       border-bottom: 1px solid var(--edge);
     }
     header h1 { font-size: 15px; margin: 0 8px 0 0; font-weight: 600; }
-    main { flex: 1; display: flex; min-height: 0; }
+    main { flex: 1; display: flex; min-height: 0; min-width: 0; }
     #canvasArea {
       flex: 1;
-      overflow: auto;
+      min-width: 0;   /* let flexbox shrink this below content size … */
+      min-height: 0;  /* … so the sidebar/footer are never pushed off-screen */
+      overflow: hidden; /* canvas zoom fits the space; nothing to scroll to */
       display: grid;
       place-items: center;
-      padding: 24px;
+      padding: 16px;
     }
     #editCanvas {
       background: #fff;
       box-shadow: 0 0 0 1px var(--edge), 0 8px 30px rgba(0,0,0,.45);
       border-radius: 3px;
-      cursor: crosshair;
       touch-action: none;
     }
     aside {
-      width: 280px;
+      width: 260px;
+      flex-shrink: 0;
       background: var(--panel);
       border-left: 1px solid var(--edge);
       padding: 12px;
