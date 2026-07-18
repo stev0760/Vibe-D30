@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   code set B with automatic code-set-C digit-run packing, checksum verified
   against hand-computed references; adjustable module width and optional
   human-readable text line.
+- Document library (File menu): save/load/rename/delete named labels in
+  localStorage, plus export/import as versioned `.d30.json` files (unknown
+  element types from newer versions are skipped on import, not fatal).
+- Manual canvas zoom (fit / 100% / 200% / 400%) with scrolling at fixed zoom.
 
 ### Fixed
 - Restored documents now rebuild image/icon bitmaps reliably: all runtime-only

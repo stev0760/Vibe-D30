@@ -402,6 +402,50 @@ async def main():
         await page.select_option("#lengthMode", "fixed")
         await page.wait_for_timeout(300)
 
+        # --- document library + export/import ------------------------------------
+        await page.click("#fileBtn")
+        await page.wait_for_selector("#docsBox", state="visible")
+        await page.fill("#docName", "ui-check-tpl")
+        await page.click("#docSave")
+        await page.wait_for_timeout(300)
+        saved = await page.evaluate(
+            "Object.values(JSON.parse(localStorage.getItem('d30library')).docs)"
+            ".some(d => d.name === 'ui-check-tpl' && d.doc.elements.length === 3)"
+        )
+        check("save to library", bool(saved))
+
+        async with page.expect_download() as dl_info:
+            await page.click("#docExport")
+        export_path = await (await dl_info.value).path()
+        check("export downloads a file", export_path is not None,
+              (await dl_info.value).suggested_filename)
+
+        await page.click("#docNew")
+        await page.wait_for_timeout(400)
+        n_new = await page.eval_on_selector_all("#elementList li", "ls => ls.length")
+        check("new clears the document", n_new == 0, f"{n_new} elements")
+
+        await page.click("#docImport")
+        await page.set_input_files("#importFile", export_path)
+        await page.wait_for_timeout(600)
+        n_imported = await page.eval_on_selector_all("#elementList li", "ls => ls.length")
+        check("import round-trips the export", n_imported == 3, f"{n_imported} elements")
+        await page.click("#docsClose")
+        await page.wait_for_timeout(200)
+
+        # --- manual zoom ------------------------------------------------------------
+        w_fit = await page.eval_on_selector("#editCanvas", "c => c.getBoundingClientRect().width")
+        await page.select_option("#zoomSel", "200")
+        await page.wait_for_timeout(300)
+        w_200 = await page.eval_on_selector("#editCanvas", "c => c.getBoundingClientRect().width")
+        # 200% = lengthPx * 2 CSS px (48mm auto doc was reset by New/Import to 40mm fixed)
+        expected = await page.evaluate("JSON.parse(localStorage.getItem('d30doc')).lengthMm * 8 * 2")
+        check("zoom 200% sizes the canvas", abs(w_200 - expected) <= 2, f"{w_200} vs {expected}")
+        await page.select_option("#zoomSel", "fit")
+        await page.wait_for_timeout(300)
+        w_fit2 = await page.eval_on_selector("#editCanvas", "c => c.getBoundingClientRect().width")
+        check("zoom back to fit restores", abs(w_fit2 - w_fit) <= 2, f"{w_fit} -> {w_fit2}")
+
         # --- persistence + deletion --------------------------------------------
         await page.reload()
         await wait_ready(page)

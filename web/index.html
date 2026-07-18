@@ -112,10 +112,23 @@
     .btnRow { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
     .btnRow button { padding: 4px 9px; }
     .hint { color: var(--muted); font-size: 12px; }
-    #iconPicker {
+    #iconPicker, #docsModal {
       position: fixed; inset: 0; background: rgba(0,0,0,.55);
       display: grid; place-items: center; z-index: 10;
     }
+    #docsBox {
+      background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
+      width: 480px; max-width: 92vw; max-height: 70vh;
+      display: flex; flex-direction: column; padding: 12px; gap: 10px;
+    }
+    #docsHead { display: flex; gap: 8px; align-items: center; }
+    #docsHead input { flex: 1; min-width: 80px; }
+    #docsList { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
+    #docsList li { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 4px; }
+    #docsList li span { flex: 1; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #docsList li.selected { background: #2a3140; }
+    #docsList button { padding: 1px 6px; }
+    #canvasArea.zoomed { place-items: start; overflow: auto; }
     #iconPickerBox {
       background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
       width: 560px; max-width: 92vw; max-height: 70vh;
@@ -134,6 +147,7 @@
 <body>
   <header>
     <h1>D30 Labeler</h1>
+    <button id="fileBtn" title="Save, load, export and import labels">File ▾</button>
     <button id="addText">+ Text</button>
     <button id="addImage">+ Image</button>
     <button id="addIcon">+ Icon</button>
@@ -147,6 +161,14 @@
     <button id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
     <button id="redoBtn" title="Redo (Ctrl+Shift+Z)">↷</button>
     <span class="spacer"></span>
+    <label title="Canvas zoom">🔍
+      <select id="zoomSel">
+        <option value="fit" selected>fit</option>
+        <option value="100">100%</option>
+        <option value="200">200%</option>
+        <option value="400">400%</option>
+      </select>
+    </label>
     <span id="lengthReadout"></span>
     <span class="dot" id="statusDot"></span>
     <span class="hint" id="statusText"></span>
@@ -254,6 +276,22 @@
       <span id="printStatus"></span>
     </div>
   </footer>
+
+  <div id="docsModal" style="display:none">
+    <div id="docsBox">
+      <div id="docsHead">
+        <input id="docName" placeholder="label name…" />
+        <button id="docSave" class="primary">Save</button>
+        <button id="docNew">New</button>
+        <button id="docExport" title="Download the current label as a .d30.json file">Export</button>
+        <button id="docImport" title="Load a .d30.json file">Import</button>
+        <button id="docsClose">✕</button>
+      </div>
+      <ul id="docsList"></ul>
+      <p class="hint" id="docsStatus"></p>
+    </div>
+  </div>
+  <input type="file" id="importFile" accept=".json,application/json" hidden />
 
   <div id="iconPicker" style="display:none">
     <div id="iconPickerBox">

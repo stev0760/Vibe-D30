@@ -22,6 +22,7 @@ export class LabelCanvas {
     this.cb = callbacks; // { onSelect(id), onChange(), onCommit(), getDoc(), getSelection(), getLengthPx(), getTool(), onPencilStroke(pts, width) }
     this._drag = null;
     this._penStroke = null; // in-progress freehand stroke, doc coords
+    this.zoomMode = "fit"; // "fit" | number (e.g. 2 = 200%)
     this.zoom = 4; // recomputed every render
 
     editCanvas.addEventListener("pointerdown", (e) => this._pointerDown(e));
@@ -49,11 +50,20 @@ export class LabelCanvas {
     return Math.max(0.5, Math.min(10, availW / lengthPx, availH / H));
   }
 
+  setZoom(mode) {
+    this.zoomMode = mode;
+    // Fixed zoom can exceed the area: switch it to scrolling; "fit" never
+    // overflows, so it keeps the centered non-scrolling layout ui_check pins.
+    this.edit.parentElement.classList.toggle("zoomed", mode !== "fit");
+    this.render();
+  }
+
   render() {
     const doc = this.cb.getDoc();
     const lengthPx = this.cb.getLengthPx();
     const H = doc.tapeWidthPx;
-    const zoom = (this.zoom = this._fitZoom(lengthPx, H));
+    const zoom = (this.zoom =
+      this.zoomMode === "fit" ? this._fitZoom(lengthPx, H) : this.zoomMode);
 
     // Editing canvas: backing store at devicePixelRatio for crisp text.
     const c = this.edit;

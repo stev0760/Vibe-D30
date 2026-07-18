@@ -4,6 +4,7 @@ import { LabelCanvas } from "./canvas.js";
 import { autoFitFontPx, ensureImageBitmap, makeBarcode, makeIcon, makeImage, makeQr, makeShape, makeText, measure, newId, seedIds, simplifyStroke } from "./elements.js";
 import { defaultFontId, listFonts, loadFont } from "./fonts.js";
 import { History } from "./history.js";
+import { deleteDoc, exportEnvelope, listDocs, loadLibrary, parseEnvelope, upsertDoc } from "./library.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -20,6 +21,8 @@ let doc = { tapeWidthPx: 96, lengthMode: "fixed", lengthMm: 40, elements: [] };
 let selectedId = null;
 let canvas;
 let tool = "select"; // "select" | "draw" (freehand pencil)
+let libId = null; // library entry the current doc was saved to / loaded from
+let appVersion = ""; // from /api/printer/status, for export metadata
 
 // ---- length ---------------------------------------------------------------
 
@@ -668,6 +671,117 @@ function addIcon(name, svg) {
   setSelection(el.id);
 }
 
+// ---- document library (File menu) -------------------------------------------
+
+function openDocsModal() {
+  $("#docsModal").style.display = "";
+  renderDocsList();
+  $("#docName").focus();
+}
+
+function closeDocsModal() {
+  $("#docsModal").style.display = "none";
+  $("#docsStatus").textContent = "";
+}
+
+function renderDocsList() {
+  const lib = loadLibrary();
+  const ul = $("#docsList");
+  ul.innerHTML = "";
+  for (const entry of listDocs(lib)) {
+    const li = document.createElement("li");
+    li.className = entry.id === libId ? "selected" : "";
+    const label = document.createElement("span");
+    label.textContent = entry.name;
+    label.title = new Date(entry.updatedAt).toLocaleString();
+    label.addEventListener("click", () => loadDocFromLibrary(entry.id));
+    const ren = document.createElement("button");
+    ren.textContent = "✎";
+    ren.title = "Rename";
+    ren.addEventListener("click", () => {
+      const name = prompt("New name:", entry.name);
+      if (name) {
+        const l = loadLibrary();
+        if (l.docs[entry.id]) {
+          l.docs[entry.id].name = name;
+          upsertDoc(l, entry.id, name, l.docs[entry.id].doc);
+          if (entry.id === libId) $("#docName").value = name;
+          renderDocsList();
+        }
+      }
+    });
+    const del = document.createElement("button");
+    del.textContent = "🗑";
+    del.title = "Delete";
+    del.addEventListener("click", () => {
+      if (!confirm(`Delete “${entry.name}”?`)) return;
+      deleteDoc(loadLibrary(), entry.id);
+      if (entry.id === libId) libId = null;
+      renderDocsList();
+    });
+    li.append(label, ren, del);
+    ul.appendChild(li);
+  }
+  if (!ul.children.length) {
+    const li = document.createElement("li");
+    li.innerHTML = '<span class="hint">no saved labels yet</span>';
+    ul.appendChild(li);
+  }
+}
+
+function saveDocToLibrary() {
+  const name = $("#docName").value.trim() || "Untitled";
+  libId = upsertDoc(loadLibrary(), libId, name, JSON.parse(serializeDoc()));
+  $("#docsStatus").textContent = `saved “${name}”`;
+  renderDocsList();
+}
+
+function loadDocFromLibrary(id) {
+  const entry = loadLibrary().docs[id];
+  if (!entry) return;
+  commit();
+  libId = id;
+  $("#docName").value = entry.name;
+  applySnapshot(JSON.stringify(entry.doc));
+  closeDocsModal();
+}
+
+function newDocument() {
+  commit();
+  libId = null;
+  $("#docName").value = "";
+  applySnapshot(serializeDoc(
+    { tapeWidthPx: 96, lengthMode: "fixed", lengthMm: 40, elements: [] }
+  ));
+  $("#docsStatus").textContent = "new label";
+}
+
+function exportDocument() {
+  const name = ($("#docName").value.trim() || "label").replace(/[^\w-]+/g, "-");
+  const blob = new Blob([exportEnvelope(JSON.parse(serializeDoc()), appVersion)], {
+    type: "application/json",
+  });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${name}.d30.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function importDocument(file) {
+  try {
+    const { doc: imported, dropped } = parseEnvelope(await file.text());
+    commit();
+    libId = null;
+    applySnapshot(JSON.stringify(imported));
+    $("#docsStatus").textContent = dropped
+      ? `imported (${dropped} unknown element${dropped > 1 ? "s" : ""} skipped)`
+      : "imported";
+  } catch (err) {
+    $("#docsStatus").textContent = `import failed: ${err.message}`;
+  }
+}
+
 async function postPrintCanvas(printCanvas, { copies = 1 } = {}) {
   const status = $("#printStatus");
   const blob = await new Promise((res) => printCanvas.toBlob(res, "image/png"));
@@ -761,6 +875,7 @@ async function doCalibrate() {
 async function pollStatus() {
   try {
     const s = await (await fetch("/api/printer/status")).json();
+    appVersion = s.version;
     const dot = $("#statusDot");
     dot.className = s.bluezConnected ? "dot on" : "dot";
     $("#statusText").textContent =
@@ -842,6 +957,24 @@ async function boot() {
   fillFontSelect();
   wirePropsPanel();
   wireKeyboard();
+
+  $("#fileBtn").addEventListener("click", openDocsModal);
+  $("#docsClose").addEventListener("click", closeDocsModal);
+  $("#docsModal").addEventListener("click", (e) => {
+    if (e.target === $("#docsModal")) closeDocsModal();
+  });
+  $("#docSave").addEventListener("click", saveDocToLibrary);
+  $("#docNew").addEventListener("click", newDocument);
+  $("#docExport").addEventListener("click", exportDocument);
+  $("#docImport").addEventListener("click", () => $("#importFile").click());
+  $("#importFile").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) importDocument(file);
+    e.target.value = "";
+  });
+  $("#zoomSel").addEventListener("change", (e) => {
+    canvas.setZoom(e.target.value === "fit" ? "fit" : Number(e.target.value) / 100);
+  });
 
   $("#addText").addEventListener("click", addText);
   $("#addImage").addEventListener("click", () => $("#imageFile").click());
