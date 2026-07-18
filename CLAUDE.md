@@ -100,9 +100,26 @@ GATT (web-bluetooth implementation skips them and works).
 1-bpp packing, tape width parameterized), `transport.py` (bleak
 scan/connect/chunked-write; best-effort `bluetoothctl disconnect` first,
 see Gotchas), `render.py` (PIL text rendering for the CLI), `cli.py`
-(`python -m d30`). `server/app.py` (FastAPI) serves `web/` and the API;
-`scripts/` keeps the original recon tools. `scripts/print_test.py` is a
-deprecated forwarding wrapper kept so docs/ble.md history stays valid.
+(`python -m d30`). `d30/__init__.py` holds `__version__` — the single
+source of truth, surfaced via FastAPI, `/api/printer/status`, the UI
+status line, and `--version`. `server/app.py` (FastAPI) serves `web/`
+and the API; `scripts/` keeps the original recon tools.
+`scripts/print_test.py` is a deprecated forwarding wrapper kept so
+docs/ble.md history stays valid.
+
+**Web frontend layout**: `web/css/{tokens,app,components}.css` (design
+tokens / shell / components — no inline styles in index.html beyond
+per-element `display:none` toggles). `web/js/`: `editor.js`
+(orchestration, state, panels, print, File menu), `canvas.js` (edit +
+print surfaces, pointer drag/resize, draw mode, zoom), `elements.js`
+(measure/draw for all element types: text, image, icon, shape, pencil,
+qr, barcode), `history.js` (undo/redo snapshots), `library.js` (named
+docs + .d30.json export/import), `barcode128.js` (from-scratch Code 128
+encoder), `dither.js`, `fonts.js`, `vendor/qrcodegen.js` (Nayuki, MIT).
+Element runtime caches use `_`-prefixed fields, stripped generically by
+`serializeDoc` — never persist a `_` field. localStorage keys: `d30doc`
+(live working copy), `d30cal` (device calibration), `d30library`
+(named saved labels).
 
 **Image geometry**: everything is packed at `(label_width_px=96,
 label_length_px)`, i.e. 96px (12mm × 8 dots/mm) is the fixed dimension
