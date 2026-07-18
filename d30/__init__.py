@@ -3,7 +3,7 @@
 Protocol details and reverse-engineering notes live in docs/ble.md.
 """
 
-__version__ = "1.0.0.dev0"
+__version__ = "1.0.0"
 
 from .protocol import (
     CHUNK_SIZE,

@@ -5,7 +5,7 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-07-18
 
 ### Added
 - Semantic versioning: `d30.__version__` as single source of truth, surfaced
@@ -70,5 +70,5 @@ Everything to date — the working v1 core, reverse-engineered from scratch:
 - Playwright regression sweep (`scripts/ui_check.py`) covering every v1
   feature including exact dry-run print header bytes.
 
-[Unreleased]: https://github.com/stev0760/Vibe-D30/compare/v0.9.0...HEAD
+[1.0.0]: https://github.com/stev0760/Vibe-D30/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/stev0760/Vibe-D30/releases/tag/v0.9.0

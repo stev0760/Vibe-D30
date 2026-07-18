@@ -20,7 +20,8 @@ suggests; [docs/ble.md](docs/ble.md) has the full bearer-selection saga.
 # then open http://127.0.0.1:8330
 ```
 
-- Freeform label canvas: drag/resize/nudge elements, fit-to-view zoom,
+- Freeform label canvas: drag/resize/nudge elements, fit-to-view or
+  manual zoom, undo/redo, duplicate/copy/paste, alignment tools,
   honest print preview (the strip below the canvas is the true 1-bpp
   render — pixel for pixel what prints)
 - **Text** in any installed system font (enumerated via fontconfig,
@@ -28,6 +29,13 @@ suggests; [docs/ble.md](docs/ble.md) has the full bearer-selection saga.
   bold/italic (synthesized in-canvas, so WYSIWYG holds)
 - **Images** with Floyd–Steinberg dithering or thresholding
 - **Icons**: 1995 searchable Lucide icons, vendored
+- **QR codes** (vendored Nayuki qrcodegen, ECC L/M/Q/H, module-crisp
+  scaling) and **Code 128 barcodes** (from-scratch encoder with
+  automatic digit-run packing)
+- **Shapes** (rect/frame/line) and a **freehand pencil** that stores
+  strokes as vectors, so drawings resize crisply
+- **Document library**: save/load named labels, export/import as
+  `.d30.json` files
 - **Print-start offset control + calibration**: where the pass starts
   depends on where the previous label was torn off, so the print bar
   has an offset field and a Calibrate button that prints a mm ruler —
@@ -65,10 +73,11 @@ install chromium`, then run it against a `D30_DRY_RUN=1` server.
 - [x] BlueZ bearer-selection failure modes diagnosed and worked around
       in the transport (docs/ble.md)
 - [x] `d30/` Python package: protocol, BLE transport, PIL rendering, CLI
-- [x] Local web app: FastAPI server + WYSIWYG editor (text/images/icons)
+- [x] Local web app: FastAPI server + WYSIWYG editor (text/images/icons/
+      shapes/pencil), undo/redo, alignment, document library
 - [x] Print-start offset control with in-UI ruler calibration
-- [ ] QR / barcode elements
-- [ ] Template manager (beyond localStorage)
+- [x] QR / barcode (Code 128) elements
+- [x] Label export/import (`.d30.json`) + named saves
 - [ ] Other tape sizes (width is parameterized, only 12mm tested)
 - [ ] Decode remaining protocol unknowns (`ff01` contents, notify bytes
       `02b600` / `1a0f0c`) — Android HCI snoop capture planned
@@ -101,4 +110,6 @@ against. Also consulted:
 [polskafan/phomemo_d30](https://github.com/polskafan/phomemo_d30) (MIT)
 and [crabdancing/phomemo-d30](https://github.com/crabdancing/phomemo-d30)
 (AGPL-3.0, documentation only). Vendored [Lucide](https://lucide.dev)
-icons are ISC-licensed (see `web/LUCIDE-LICENSE.txt`).
+icons are ISC-licensed (see `web/LUCIDE-LICENSE.txt`); the vendored
+[QR Code generator library](https://www.nayuki.io/page/qr-code-generator-library)
+(Project Nayuki) is MIT-licensed (see `web/js/vendor/QRCODEGEN-LICENSE`).
