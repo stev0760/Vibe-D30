@@ -121,6 +121,31 @@ async def main():
         )
         check("arrow nudge sets userMoved", bool(moved))
 
+        # --- undo/redo ----------------------------------------------------------
+        x_after_nudge = await page.evaluate(
+            "JSON.parse(localStorage.getItem('d30doc')).elements[0].x"
+        )
+        await page.keyboard.press("Control+z")
+        await page.wait_for_timeout(600)
+        undone = await page.evaluate(
+            "JSON.parse(localStorage.getItem('d30doc')).elements[0]"
+        )
+        check(
+            "undo restores pre-nudge state",
+            undone["x"] == x_after_nudge - 1 and not undone.get("userMoved"),
+            f"x {x_after_nudge} -> {undone['x']}, userMoved={undone.get('userMoved')}",
+        )
+        await page.keyboard.press("Control+Shift+z")
+        await page.wait_for_timeout(600)
+        redone = await page.evaluate(
+            "JSON.parse(localStorage.getItem('d30doc')).elements[0]"
+        )
+        check(
+            "redo reapplies nudge",
+            redone["x"] == x_after_nudge and redone.get("userMoved") is True,
+            f"x={redone['x']}",
+        )
+
         # drag the selection's corner handle: font size scales, auto-size off
         px_before = await page.evaluate(
             "JSON.parse(localStorage.getItem('d30doc')).elements[0].fontPx"
@@ -242,6 +267,29 @@ async def main():
         await page.click("#printBtn")
         status = await wait_print_done(page)
         check("dry-run print (showcase)", "dry run ok" in status, status.strip())
+
+        # --- duplicate + alignment ----------------------------------------------
+        await page.click("#elementList li span")  # select topmost element
+        await page.wait_for_selector("#arrangeProps", state="visible")
+        await page.click("#dupEl")
+        await page.wait_for_timeout(300)
+        n_dup = await page.eval_on_selector_all("#elementList li", "ls => ls.length")
+        check("duplicate adds an element", n_dup == 4, f"{n_dup} elements")
+        await page.keyboard.press("Control+z")
+        await page.wait_for_timeout(300)
+        n_undup = await page.eval_on_selector_all("#elementList li", "ls => ls.length")
+        check("undo removes the duplicate", n_undup == 3, f"{n_undup} elements")
+
+        await page.click("#elementList li span")
+        await page.click("#align-left")
+        await page.wait_for_timeout(600)
+        aligned = await page.evaluate(
+            """() => {
+                const doc = JSON.parse(localStorage.getItem('d30doc'));
+                return doc.elements[doc.elements.length - 1].x;  // topmost = selected
+            }"""
+        )
+        check("align-left snaps to safe margin", aligned == 8, f"x={aligned}")
 
         # --- auto length --------------------------------------------------------
         await page.select_option("#lengthMode", "auto")

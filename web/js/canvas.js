@@ -189,6 +189,12 @@ export class LabelCanvas {
       return;
     }
     const d = this._drag;
+    if (!d.committed) {
+      // Snapshot the pre-drag state exactly once, on first real movement —
+      // a click that never moves must not create an empty undo step.
+      this.cb.onCommit?.();
+      d.committed = true;
+    }
     if (d.mode === "move") {
       d.el.x = Math.round(p.x - d.offX);
       d.el.y = Math.round(p.y - d.offY);

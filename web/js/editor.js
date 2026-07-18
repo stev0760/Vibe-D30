@@ -1,8 +1,9 @@
 // App orchestration: document state, selection, panels, persistence, print.
 
 import { LabelCanvas } from "./canvas.js";
-import { autoFitFontPx, ensureImageBitmap, makeIcon, makeImage, makeText, measure, seedIds } from "./elements.js";
+import { autoFitFontPx, ensureImageBitmap, makeIcon, makeImage, makeText, measure, newId, seedIds } from "./elements.js";
 import { defaultFontId, listFonts, loadFont } from "./fonts.js";
+import { History } from "./history.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -34,19 +35,78 @@ function getLengthPx() {
 
 // ---- persistence ----------------------------------------------------------
 
+// Runtime-only fields (bitmap/image caches, signatures) use a `_` prefix and
+// are stripped generically on every serialization — persisted documents and
+// undo snapshots carry only the declarative element state.
+function stripRuntime(el) {
+  const clean = {};
+  for (const [k, v] of Object.entries(el)) {
+    if (!k.startsWith("_")) clean[k] = v;
+  }
+  return clean;
+}
+
+function serializeDoc(d = doc) {
+  return JSON.stringify({ ...d, elements: d.elements.map(stripRuntime) });
+}
+
 let saveTimer = null;
 function persist() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    const clean = {
-      ...doc,
-      elements: doc.elements.map((el) => {
-        const { _bitmap, ...rest } = el;
-        return rest;
-      }),
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
+    localStorage.setItem(STORAGE_KEY, serializeDoc());
   }, 300);
+}
+
+// ---- undo/redo --------------------------------------------------------------
+
+const history = new History();
+let clipboard = null; // in-app element clipboard (serialized, runtime-free)
+
+// Snapshot the pre-mutation state; call right before every document change.
+function commit(coalesceKey = null) {
+  history.commit(serializeDoc(), coalesceKey);
+}
+
+function applySnapshot(json) {
+  doc = JSON.parse(json);
+  seedIds(doc.elements);
+  if (!doc.elements.some((e) => e.id === selectedId)) selectedId = null;
+  // Fonts referenced by the restored state may not be loaded yet; re-render
+  // once they are (draw() skips unloaded fonts, so this is safe either way).
+  Promise.allSettled(
+    doc.elements.filter((e) => e.type === "text").map((e) => loadFont(e.fontId))
+  ).then(update);
+  syncPropsPanel();
+  update();
+}
+
+function doUndo() {
+  const s = history.undo(serializeDoc());
+  if (s != null) applySnapshot(s);
+}
+
+function doRedo() {
+  const s = history.redo(serializeDoc());
+  if (s != null) applySnapshot(s);
+}
+
+function pasteElement(src) {
+  if (!src) return;
+  commit();
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = newId();
+  copy.x = (copy.x ?? 0) + 8;
+  copy.y = (copy.y ?? 0) + 8;
+  copy.userMoved = true;
+  doc.elements.push(copy);
+  if (copy.type === "text") loadFont(copy.fontId);
+  setSelection(copy.id);
+}
+
+function duplicateSelected() {
+  const el = selectedEl();
+  if (el) pasteElement(stripRuntime(el));
 }
 
 function restore() {
@@ -154,6 +214,7 @@ function renderElementList() {
     up.addEventListener("click", () => {
       const idx = doc.elements.indexOf(el);
       if (idx < doc.elements.length - 1) {
+        commit();
         [doc.elements[idx], doc.elements[idx + 1]] = [doc.elements[idx + 1], doc.elements[idx]];
         update();
       }
@@ -164,6 +225,7 @@ function renderElementList() {
     down.addEventListener("click", () => {
       const idx = doc.elements.indexOf(el);
       if (idx > 0) {
+        commit();
         [doc.elements[idx], doc.elements[idx - 1]] = [doc.elements[idx - 1], doc.elements[idx]];
         update();
       }
@@ -181,6 +243,7 @@ function syncPropsPanel() {
   const el = selectedEl();
   $("#textProps").style.display = el?.type === "text" ? "" : "none";
   $("#imageProps").style.display = el?.type === "image" || el?.type === "icon" ? "" : "none";
+  $("#arrangeProps").style.display = el ? "" : "none";
   if (el?.type === "text") {
     $("#propText").value = el.text;
     $("#fontSelect").value = el.fontId;
@@ -216,6 +279,7 @@ function wirePropsPanel() {
   $("#propText").addEventListener("input", (e) => {
     const el = selectedEl();
     if (el?.type === "text") {
+      commit(`text:${el.id}`);
       el.text = e.target.value;
       update();
     }
@@ -224,6 +288,7 @@ function wirePropsPanel() {
   $("#fontSelect").addEventListener("change", async (e) => {
     const el = selectedEl();
     if (el?.type === "text") {
+      commit();
       el.fontId = e.target.value;
       await loadFont(el.fontId);
       update();
@@ -233,6 +298,7 @@ function wirePropsPanel() {
   $("#fontPx").addEventListener("input", (e) => {
     const el = selectedEl();
     if (el?.type === "text") {
+      commit(`fontPx:${el.id}`);
       el.fontPx = Math.max(4, Number(e.target.value) || 4);
       el.autoSize = false;
       $("#autoSize").checked = false;
@@ -242,6 +308,7 @@ function wirePropsPanel() {
   $("#autoSize").addEventListener("change", (e) => {
     const el = selectedEl();
     if (el?.type === "text") {
+      commit();
       el.autoSize = e.target.checked;
       update();
       $("#fontPx").value = el.fontPx;
@@ -251,6 +318,7 @@ function wirePropsPanel() {
     $(id).addEventListener("change", (e) => {
       const el = selectedEl();
       if (el?.type === "text") {
+        commit();
         el[key] = e.target.checked;
         update();
       }
@@ -261,6 +329,7 @@ function wirePropsPanel() {
   $("#imgMode").addEventListener("change", (e) => {
     const el = selectedEl();
     if (el?.type === "image" || el?.type === "icon") {
+      commit();
       el.mode = e.target.value;
       update();
     }
@@ -268,6 +337,7 @@ function wirePropsPanel() {
   $("#imgThreshold").addEventListener("input", (e) => {
     const el = selectedEl();
     if (el?.type === "image" || el?.type === "icon") {
+      commit(`thr:${el.id}`);
       el.threshold = Number(e.target.value);
       update();
     }
@@ -278,9 +348,32 @@ function wirePropsPanel() {
 function deleteSelected() {
   const idx = doc.elements.findIndex((e) => e.id === selectedId);
   if (idx >= 0) {
+    commit();
     doc.elements.splice(idx, 1);
     setSelection(null);
   }
+}
+
+// ---- alignment --------------------------------------------------------------
+// Snap the selection within the label, honoring the 1mm safe margin (the
+// die-cut corners physically clip ink placed tighter than that).
+
+function alignSelected(how) {
+  const el = selectedEl();
+  if (!el) return;
+  const b = measure(el);
+  const L = getLengthPx();
+  const H = doc.tapeWidthPx;
+  const M = AUTO_MARGIN_PX;
+  commit();
+  if (how === "left") el.x = M;
+  else if (how === "centerH") el.x = Math.round((L - b.w) / 2);
+  else if (how === "right") el.x = Math.max(M, L - M - Math.round(b.w));
+  else if (how === "top") el.y = M;
+  else if (how === "middleV") el.y = Math.round((H - b.h) / 2);
+  else if (how === "bottom") el.y = Math.max(M, H - M - Math.round(b.h));
+  el.userMoved = true;
+  update();
 }
 
 // ---- toolbar / print bar --------------------------------------------------
@@ -289,6 +382,7 @@ async function addText() {
   const fontId = $("#fontSelect").value || (await defaultFontId());
   await loadFont(fontId);
   const el = makeText("Text", fontId, 8, 20);
+  commit();
   doc.elements.push(el);
   setSelection(el.id); // update() auto-fits and centers it (not userMoved yet)
 }
@@ -330,6 +424,7 @@ async function addImage(file) {
     Math.round((getLengthPx() - w) / 2),
     Math.round((doc.tapeWidthPx - h) / 2)
   );
+  commit();
   doc.elements.push(el);
   setSelection(el.id);
 }
@@ -382,6 +477,7 @@ function addIcon(name, svg) {
     Math.round((getLengthPx() - size) / 2),
     Math.round((doc.tapeWidthPx - size) / 2)
   );
+  commit();
   doc.elements.push(el);
   setSelection(el.id);
 }
@@ -492,16 +588,44 @@ async function pollStatus() {
 
 function wireKeyboard() {
   document.addEventListener("keydown", (e) => {
+    // Form fields keep their native keyboard behavior (incl. text undo).
     if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+    const mod = e.ctrlKey || e.metaKey;
+    const key = e.key.toLowerCase();
+    if (mod && key === "z") {
+      e.preventDefault();
+      e.shiftKey ? doRedo() : doUndo();
+      return;
+    }
+    if (mod && key === "y") {
+      e.preventDefault();
+      doRedo();
+      return;
+    }
+    if (mod && key === "v") {
+      e.preventDefault();
+      pasteElement(clipboard);
+      return;
+    }
     const el = selectedEl();
     if (!el) return;
+    if (mod && key === "d") {
+      e.preventDefault();
+      duplicateSelected();
+      return;
+    }
+    if (mod && key === "c") {
+      clipboard = stripRuntime(el);
+      return;
+    }
     const step = e.shiftKey ? 10 : 1;
-    if (e.key === "Delete" || e.key === "Backspace") deleteSelected();
-    else if (e.key === "ArrowLeft") { el.x -= step; el.userMoved = true; }
+    if (e.key === "Delete" || e.key === "Backspace") { deleteSelected(); e.preventDefault(); return; }
+    if (!e.key.startsWith("Arrow")) return;
+    commit(`nudge:${el.id}`);
+    if (e.key === "ArrowLeft") { el.x -= step; el.userMoved = true; }
     else if (e.key === "ArrowRight") { el.x += step; el.userMoved = true; }
     else if (e.key === "ArrowUp") { el.y -= step; el.userMoved = true; }
     else if (e.key === "ArrowDown") { el.y += step; el.userMoved = true; }
-    else return;
     e.preventDefault();
     update();
   });
@@ -518,6 +642,7 @@ async function boot() {
     getLengthPx,
     onSelect: setSelection,
     onChange: update,
+    onCommit: commit,
   });
 
   fontsCache = await listFonts();
@@ -533,6 +658,12 @@ async function boot() {
     e.target.value = ""; // allow re-adding the same file
   });
   $("#addIcon").addEventListener("click", openIconPicker);
+  $("#undoBtn").addEventListener("click", doUndo);
+  $("#redoBtn").addEventListener("click", doRedo);
+  $("#dupEl").addEventListener("click", duplicateSelected);
+  for (const how of ["left", "centerH", "right", "top", "middleV", "bottom"]) {
+    $(`#align-${how}`).addEventListener("click", () => alignSelected(how));
+  }
   $("#iconSearch").addEventListener("input", (e) => renderIconGrid(e.target.value));
   $("#iconPickerClose").addEventListener("click", closeIconPicker);
   $("#iconPicker").addEventListener("click", (e) => {
@@ -543,11 +674,13 @@ async function boot() {
   $("#offsetMm").addEventListener("input", persistCal);
   restoreCal();
   $("#lengthMode").addEventListener("change", (e) => {
+    commit();
     doc.lengthMode = e.target.value;
     $("#lengthMm").disabled = doc.lengthMode !== "fixed";
     update();
   });
   $("#lengthMm").addEventListener("input", (e) => {
+    commit("lengthMm");
     doc.lengthMm = Math.max(16, Math.min(300, Number(e.target.value) || 40));
     update();
   });

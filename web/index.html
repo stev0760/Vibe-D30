@@ -107,6 +107,8 @@
     .dot.on { background: #22c55e; }
     .dot.err { background: #ef4444; }
     .spacer { flex: 1; }
+    .btnRow { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
+    .btnRow button { padding: 4px 9px; }
     .hint { color: var(--muted); font-size: 12px; }
     #iconPicker {
       position: fixed; inset: 0; background: rgba(0,0,0,.55);
@@ -134,6 +136,8 @@
     <button id="addImage">+ Image</button>
     <button id="addIcon">+ Icon</button>
     <input type="file" id="imageFile" accept="image/*" hidden />
+    <button id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
+    <button id="redoBtn" title="Redo (Ctrl+Shift+Z)">↷</button>
     <span class="spacer"></span>
     <span id="lengthReadout"></span>
     <span class="dot" id="statusDot"></span>
@@ -169,10 +173,24 @@
         <label class="row">Level <input type="range" id="imgThreshold" min="1" max="254" value="128" style="flex:1" /></label>
         <button id="deleteImgEl" style="margin-top:6px">Delete element</button>
       </section>
+      <section id="arrangeProps" style="display:none">
+        <h2>Arrange</h2>
+        <div class="btnRow">
+          <button id="align-left" title="Align left">⇤</button>
+          <button id="align-centerH" title="Center horizontally">↔</button>
+          <button id="align-right" title="Align right">⇥</button>
+          <button id="align-top" title="Align top">⤒</button>
+          <button id="align-middleV" title="Center vertically">↕</button>
+          <button id="align-bottom" title="Align bottom">⤓</button>
+        </div>
+        <div class="btnRow">
+          <button id="dupEl" title="Duplicate (Ctrl+D)">Duplicate</button>
+        </div>
+      </section>
       <section>
         <h2>Elements</h2>
         <ul id="elementList"></ul>
-        <p class="hint">Drag to move · corner handle to resize · arrows nudge · Del removes</p>
+        <p class="hint">Drag to move · corner handle to resize · arrows nudge · Del removes · Ctrl+Z/Y undo/redo · Ctrl+C/V/D copy/paste/dup</p>
       </section>
     </aside>
   </main>

@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Semantic versioning: `d30.__version__` as single source of truth, surfaced
   via `FastAPI(version=)`, the `/api/printer/status` response, the editor's
   header status line, and `python -m d30 --version`.
+- Undo/redo (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y, plus header buttons): full-document
+  snapshot history with coalescing for typing bursts and slider drags.
+- Duplicate (Ctrl+D + Arrange button) and in-app element copy/paste (Ctrl+C/V).
+- Arrange panel: align selection left/center/right/top/middle/bottom within the
+  label, snapping to the 1mm safe margin.
+
+### Fixed
+- Restored documents now rebuild image/icon bitmaps reliably: all runtime-only
+  element fields (`_`-prefixed caches) are stripped from persisted state, where
+  previously a stale persisted cache signature could leave images invisible
+  after reload.
 
 ## [0.9.0] - 2026-07-17
 
