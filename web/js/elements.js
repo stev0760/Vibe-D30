@@ -4,6 +4,8 @@
 
 import { floydSteinberg, threshold } from "./dither.js";
 import { isLoaded } from "./fonts.js";
+import { encode128 } from "./barcode128.js";
+import qrcodegen from "./vendor/qrcodegen.js";
 
 let nextId = 1;
 export function newId() {
@@ -60,6 +62,21 @@ export function measure(el) {
       ascent, left,
     };
   }
+  if (el.type === "qr") {
+    // Size snaps to a whole number of pixels per module so every module is
+    // a crisp integer square (pure black, untouched by the threshold pass).
+    const qr = ensureQrMatrix(el);
+    const n = qr ? qr.size : 21;
+    const scale = Math.max(1, Math.floor((el.size || n) / n));
+    const s = n * scale;
+    return { x: el.x, y: el.y, w: s, h: s };
+  }
+  if (el.type === "barcode") {
+    // Width is derived: modules × module width (resize adjusts height only).
+    const enc = ensureBarcode(el);
+    const w = enc ? enc.modules * (el.moduleW || 2) : 120;
+    return { x: el.x, y: el.y, w, h: el.h };
+  }
   // image / icon / shape / pencil: explicit box
   return { x: el.x, y: el.y, w: el.w, h: el.h };
 }
@@ -103,6 +120,10 @@ export function draw(ctx, el) {
     drawShape(ctx, el);
   } else if (el.type === "pencil") {
     drawPencil(ctx, el);
+  } else if (el.type === "qr") {
+    drawQr(ctx, el);
+  } else if (el.type === "barcode") {
+    drawBarcode(ctx, el);
   } else if ((el.type === "image" || el.type === "icon") && el._bitmap) {
     // Multiply: ink accumulates. The bitmap's white background multiplies to
     // identity, so an element's bounding box doesn't erase what's under it.
@@ -218,6 +239,110 @@ export function simplifyStroke(pts, epsilon = 0.5) {
     }
   }
   return pts.filter((_, i) => keep[i]);
+}
+
+// ---- QR / barcode -----------------------------------------------------------
+// Both cache their computed matrix/encoding under `_`-prefixed fields (the
+// serializer strips those) and draw pure-black integer-aligned fills, so the
+// global 1-bpp threshold pass provably leaves them untouched.
+
+const QR_ECC = {
+  L: () => qrcodegen.QrCode.Ecc.LOW,
+  M: () => qrcodegen.QrCode.Ecc.MEDIUM,
+  Q: () => qrcodegen.QrCode.Ecc.QUARTILE,
+  H: () => qrcodegen.QrCode.Ecc.HIGH,
+};
+
+function ensureQrMatrix(el) {
+  const sig = `${el.data}|${el.ecc}`;
+  if (el._qrSig !== sig) {
+    el._qrSig = sig;
+    try {
+      el._qr = qrcodegen.QrCode.encodeText(el.data || "", (QR_ECC[el.ecc] || QR_ECC.M)());
+    } catch {
+      el._qr = null; // data too long for any version: placeholder instead
+    }
+  }
+  return el._qr;
+}
+
+function ensureBarcode(el) {
+  if (el._bcSig !== el.data) {
+    el._bcSig = el.data;
+    el._bc = encode128(el.data || "");
+  }
+  return el._bc;
+}
+
+// Hatched box: an invalid element stays visible/selectable without throwing.
+function drawInvalid(ctx, x, y, w, h) {
+  ctx.save();
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.beginPath();
+  for (let d = -h; d < w; d += 6) {
+    ctx.moveTo(x + Math.max(0, d), y + Math.max(0, -d));
+    ctx.lineTo(x + Math.min(w, d + h), y + Math.min(h, w - d));
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawQr(ctx, el) {
+  const qr = ensureQrMatrix(el);
+  const b = measure(el);
+  if (!qr) {
+    drawInvalid(ctx, el.x, el.y, b.w, b.h);
+    return;
+  }
+  const scale = b.w / qr.size;
+  ctx.save();
+  ctx.fillStyle = "#000";
+  for (let y = 0; y < qr.size; y++) {
+    for (let x = 0; x < qr.size; x++) {
+      if (qr.getModule(x, y)) {
+        ctx.fillRect(el.x + x * scale, el.y + y * scale, scale, scale);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+const BARCODE_TEXT_PX = 12;
+
+function drawBarcode(ctx, el) {
+  const enc = ensureBarcode(el);
+  const b = measure(el);
+  if (!enc) {
+    drawInvalid(ctx, el.x, el.y, b.w, b.h);
+    return;
+  }
+  const mw = el.moduleW || 2;
+  const barH = Math.max(4, b.h - (el.showText ? BARCODE_TEXT_PX + 2 : 0));
+  ctx.save();
+  ctx.fillStyle = "#000";
+  let x = el.x;
+  for (let i = 0; i < enc.widths.length; i++) {
+    const w = enc.widths[i] * mw;
+    if (i % 2 === 0) ctx.fillRect(x, el.y, w, barH); // even = bar, odd = space
+    x += w;
+  }
+  if (el.showText) {
+    ctx.font = `${BARCODE_TEXT_PX}px system-ui, sans-serif`;
+    ctx.textBaseline = "bottom";
+    ctx.textAlign = "center";
+    ctx.fillText(el.data, el.x + b.w / 2, el.y + b.h);
+  }
+  ctx.restore();
+}
+
+export function makeQr(data, x, y, size = 80) {
+  return { id: newId(), type: "qr", data, ecc: "M", x, y, size, userMoved: true };
+}
+
+export function makeBarcode(data, x, y, h = 60) {
+  return { id: newId(), type: "barcode", data, x, y, h, moduleW: 2, showText: false, userMoved: true };
 }
 
 export function makeShape(kind, x, y, w, h) {

@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Freehand pencil: a Draw mode that captures strokes as vector paths
   (Ramer–Douglas–Peucker–simplified, normalized to the element box), so
   drawings resize crisply and threshold like text edges.
+- QR code elements (vendored Project Nayuki qrcodegen, MIT): ECC L/M/Q/H,
+  module-crisp integer scaling so codes stay pure black through the 1-bpp
+  pass.
+- Code 128 barcode elements (from-scratch encoder, `web/js/barcode128.js`):
+  code set B with automatic code-set-C digit-run packing, checksum verified
+  against hand-computed references; adjustable module width and optional
+  human-readable text line.
 
 ### Fixed
 - Restored documents now rebuild image/icon bitmaps reliably: all runtime-only

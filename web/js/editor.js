@@ -1,7 +1,7 @@
 // App orchestration: document state, selection, panels, persistence, print.
 
 import { LabelCanvas } from "./canvas.js";
-import { autoFitFontPx, ensureImageBitmap, makeIcon, makeImage, makeShape, makeText, measure, newId, seedIds, simplifyStroke } from "./elements.js";
+import { autoFitFontPx, ensureImageBitmap, makeBarcode, makeIcon, makeImage, makeQr, makeShape, makeText, measure, newId, seedIds, simplifyStroke } from "./elements.js";
 import { defaultFontId, listFonts, loadFont } from "./fonts.js";
 import { History } from "./history.js";
 
@@ -211,6 +211,8 @@ function renderElementList() {
       : el.type === "icon" ? `◆ ${el.name}`
       : el.type === "shape" ? (el.kind === "line" ? "╱ line" : "▭ rect")
       : el.type === "pencil" ? `✎ drawing (${el.strokes.length})`
+      : el.type === "qr" ? `⊞ QR “${(el.data || "").slice(0, 14)}”`
+      : el.type === "barcode" ? `‖ 128 “${(el.data || "").slice(0, 12)}”`
       : "▣ image";
     label.addEventListener("click", () => setSelection(el.id));
     const up = document.createElement("button");
@@ -249,6 +251,8 @@ function syncPropsPanel() {
   $("#textProps").style.display = el?.type === "text" ? "" : "none";
   $("#imageProps").style.display = el?.type === "image" || el?.type === "icon" ? "" : "none";
   $("#shapeProps").style.display = el?.type === "shape" ? "" : "none";
+  $("#qrProps").style.display = el?.type === "qr" ? "" : "none";
+  $("#barcodeProps").style.display = el?.type === "barcode" ? "" : "none";
   $("#arrangeProps").style.display = el ? "" : "none";
   if (el?.type === "text") {
     $("#propText").value = el.text;
@@ -268,6 +272,13 @@ function syncPropsPanel() {
     $("#shapeFill").parentElement.style.display = el.kind === "rect" ? "" : "none";
     $("#shapeRadius").parentElement.style.display = el.kind === "rect" ? "" : "none";
     $("#shapeFlip").parentElement.style.display = el.kind === "line" ? "" : "none";
+  } else if (el?.type === "qr") {
+    $("#qrData").value = el.data;
+    $("#qrEcc").value = el.ecc;
+  } else if (el?.type === "barcode") {
+    $("#barcodeData").value = el.data;
+    $("#barcodeModuleW").value = el.moduleW;
+    $("#barcodeText").checked = !!el.showText;
   }
 }
 
@@ -391,6 +402,50 @@ function wirePropsPanel() {
     }
   });
   $("#deleteShapeEl").addEventListener("click", deleteSelected);
+
+  $("#qrData").addEventListener("input", (e) => {
+    const el = selectedEl();
+    if (el?.type === "qr") {
+      commit(`qr:${el.id}`);
+      el.data = e.target.value;
+      update();
+    }
+  });
+  $("#qrEcc").addEventListener("change", (e) => {
+    const el = selectedEl();
+    if (el?.type === "qr") {
+      commit();
+      el.ecc = e.target.value;
+      update();
+    }
+  });
+  $("#deleteQrEl").addEventListener("click", deleteSelected);
+
+  $("#barcodeData").addEventListener("input", (e) => {
+    const el = selectedEl();
+    if (el?.type === "barcode") {
+      commit(`bc:${el.id}`);
+      el.data = e.target.value;
+      update();
+    }
+  });
+  $("#barcodeModuleW").addEventListener("input", (e) => {
+    const el = selectedEl();
+    if (el?.type === "barcode") {
+      commit(`bcw:${el.id}`);
+      el.moduleW = Math.max(1, Math.min(6, Number(e.target.value) || 2));
+      update();
+    }
+  });
+  $("#barcodeText").addEventListener("change", (e) => {
+    const el = selectedEl();
+    if (el?.type === "barcode") {
+      commit();
+      el.showText = e.target.checked;
+      update();
+    }
+  });
+  $("#deleteBarcodeEl").addEventListener("click", deleteSelected);
 }
 
 function deleteSelected() {
@@ -433,6 +488,21 @@ async function addText() {
   commit();
   doc.elements.push(el);
   setSelection(el.id); // update() auto-fits and centers it (not userMoved yet)
+}
+
+function addQr() {
+  const size = doc.tapeWidthPx - 2 * AUTO_MARGIN_PX; // 80px default fits the safe band
+  const el = makeQr("https://example.com", AUTO_MARGIN_PX, AUTO_MARGIN_PX, size);
+  commit();
+  doc.elements.push(el);
+  setSelection(el.id);
+}
+
+function addBarcode() {
+  const el = makeBarcode("ABC-123", AUTO_MARGIN_PX, AUTO_MARGIN_PX, doc.tapeWidthPx - 2 * AUTO_MARGIN_PX);
+  commit();
+  doc.elements.push(el);
+  setSelection(el.id);
 }
 
 function addShape(kind) {
@@ -781,6 +851,8 @@ async function boot() {
     e.target.value = ""; // allow re-adding the same file
   });
   $("#addIcon").addEventListener("click", openIconPicker);
+  $("#addQr").addEventListener("click", addQr);
+  $("#addBarcode").addEventListener("click", addBarcode);
   $("#addRect").addEventListener("click", () => addShape("rect"));
   $("#addLine").addEventListener("click", () => addShape("line"));
   $("#drawToggle").addEventListener("click", () => setTool(tool === "draw" ? "select" : "draw"));

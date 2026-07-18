@@ -137,6 +137,8 @@
     <button id="addText">+ Text</button>
     <button id="addImage">+ Image</button>
     <button id="addIcon">+ Icon</button>
+    <button id="addQr" title="QR code">+ QR</button>
+    <button id="addBarcode" title="Code 128 barcode">+ Barcode</button>
     <button id="addRect" title="Rectangle / frame">+ Rect</button>
     <button id="addLine" title="Line / rule">+ Line</button>
     <button id="drawToggle" title="Freehand pencil — draw on the label (Esc to exit)">✏ Draw</button>
@@ -186,6 +188,29 @@
         <label class="row">Corner radius <input type="number" id="shapeRadius" min="0" max="48" value="0" /></label>
         <label class="row">Flip diagonal <input type="checkbox" id="shapeFlip" /></label>
         <button id="deleteShapeEl" style="margin-top:6px">Delete element</button>
+      </section>
+      <section id="qrProps" style="display:none">
+        <h2>QR code</h2>
+        <textarea id="qrData" rows="2" placeholder="text or URL…"></textarea>
+        <label class="row">Error correction
+          <select id="qrEcc" style="width:auto">
+            <option value="L">L (7%)</option>
+            <option value="M">M (15%)</option>
+            <option value="Q">Q (25%)</option>
+            <option value="H">H (30%)</option>
+          </select>
+        </label>
+        <p class="hint">Keep ~4 modules of white space around the code for reliable scans.</p>
+        <button id="deleteQrEl" style="margin-top:6px">Delete element</button>
+      </section>
+      <section id="barcodeProps" style="display:none">
+        <h2>Barcode (Code 128)</h2>
+        <input id="barcodeData" placeholder="ASCII data…" style="width:100%" />
+        <label class="row" title="Width of the narrowest bar. 2px = 0.25mm — the minimum most scanners read reliably; 1px prints but is marginal.">
+          Module width <input type="number" id="barcodeModuleW" min="1" max="6" value="2" />
+        </label>
+        <label class="row">Show text <input type="checkbox" id="barcodeText" /></label>
+        <button id="deleteBarcodeEl" style="margin-top:6px">Delete element</button>
       </section>
       <section id="arrangeProps" style="display:none">
         <h2>Arrange</h2>

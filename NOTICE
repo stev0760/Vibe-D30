@@ -19,3 +19,6 @@ open-source work on the same printer family:
 Vendored assets:
 - Lucide icons (https://lucide.dev), ISC license — see
   web/LUCIDE-LICENSE.txt.
+- QR Code generator library (Project Nayuki,
+  https://www.nayuki.io/page/qr-code-generator-library), MIT license —
+  see web/js/vendor/QRCODEGEN-LICENSE.

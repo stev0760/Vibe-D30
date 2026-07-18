@@ -187,7 +187,7 @@ export class LabelCanvas {
     // Resize handle of current selection first
     const sel = this._selected();
     if (sel && this._onHandle(p, sel)) {
-      this._drag = { mode: "resize", el: sel, startY: p.y, startBox: measure(sel), startFontPx: sel.fontPx };
+      this._drag = { mode: "resize", el: sel, startY: p.y, startBox: measure(sel), startFontPx: sel.fontPx, startSize: sel.size };
       this.edit.setPointerCapture(e.pointerId);
       return;
     }
@@ -236,6 +236,10 @@ export class LabelCanvas {
       if (d.el.type === "text") {
         d.el.fontPx = Math.max(4, Math.round(d.startFontPx * scale));
         d.el.autoSize = false;
+      } else if (d.el.type === "qr") {
+        d.el.size = Math.max(21, Math.round(d.startSize * scale)); // snaps per-module in measure()
+      } else if (d.el.type === "barcode") {
+        d.el.h = Math.max(12, Math.round(d.startBox.h * scale)); // width is modules × moduleW
       } else {
         d.el.w = Math.max(2, Math.round(d.startBox.w * scale));
         d.el.h = Math.max(2, Math.round(d.startBox.h * scale));

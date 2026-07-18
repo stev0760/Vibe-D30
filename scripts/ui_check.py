@@ -309,6 +309,47 @@ async def main():
         await page.keyboard.press("Control+z")
         await page.wait_for_timeout(400)
 
+        # --- QR + barcode -----------------------------------------------------------
+        await page.click("#addQr")
+        await page.wait_for_selector("#qrProps", state="visible")
+        await page.fill("#qrData", "https://vibe-d30.test/x")
+        await page.wait_for_timeout(500)
+        ink_qr1 = (await preview_ink(page))["black"]
+        # nudge right then back: two full re-renders; a deterministic pure-black
+        # QR must produce the identical ink count
+        await page.click("#elementList li span")
+        await page.keyboard.press("ArrowRight")
+        await page.keyboard.press("ArrowLeft")
+        await page.wait_for_timeout(300)
+        ink_qr2 = (await preview_ink(page))["black"]
+        check("qr renders deterministically", ink_qr1 == ink_qr2 and ink_qr1 > 400,
+              f"{ink_qr1} == {ink_qr2}")
+        await page.click("#printBtn")
+        status = await wait_print_done(page)
+        check("dry-run print with QR keeps header", "1b401d7630000c004001" in status, status.strip())
+        await page.click("#elementList li span")
+        await page.keyboard.press("Delete")
+
+        await page.click("#addBarcode")
+        await page.wait_for_selector("#barcodeProps", state="visible")
+        await page.fill("#barcodeData", "ABC-123")
+        await page.wait_for_timeout(500)
+        bc = await page.evaluate(
+            """async () => {
+                const { encode128 } = await import('/js/barcode128.js');
+                const doc = JSON.parse(localStorage.getItem('d30doc'));
+                const el = doc.elements.find(e => e.type === 'barcode');
+                const enc = encode128(el.data);
+                return { data: el.data, modules: enc.modules, moduleW: el.moduleW };
+            }"""
+        )
+        # Code 128B: start + 7 data + check + stop = 9*11 + 13 = 112 modules
+        check("code128 module count", bc["modules"] == 112, json.dumps(bc))
+        await page.keyboard.press("Escape")
+        await page.click("#elementList li span")
+        await page.keyboard.press("Delete")
+        await page.wait_for_timeout(300)
+
         # --- freehand pencil --------------------------------------------------------
         box2 = await (await page.query_selector("#editCanvas")).bounding_box()
         await page.click("#drawToggle")
