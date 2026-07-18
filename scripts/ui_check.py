@@ -15,6 +15,7 @@ downloaded (`.venv/bin/playwright install chromium`).
 """
 import asyncio
 import json
+import re
 
 from playwright.async_api import async_playwright
 
@@ -69,6 +70,17 @@ async def main():
         await wait_ready(page)
         n_fonts = await page.eval_on_selector_all("#fontSelect option", "os => os.length")
         check("boot + fonts enumerated", n_fonts > 100, f"{n_fonts} fonts")
+
+        # header status line shows the app version (from /api/printer/status)
+        await page.wait_for_function(
+            "document.querySelector('#statusText').textContent.length > 0"
+        )
+        status_text = await page.text_content("#statusText")
+        check(
+            "version shown in status",
+            bool(re.search(r"v\d+\.\d+\.\d+", status_text or "")),
+            (status_text or "").strip(),
+        )
 
         # Start from a clean document
         await page.evaluate("localStorage.removeItem('d30doc'); location.reload()")

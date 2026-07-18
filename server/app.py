@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from d30 import __version__  # noqa: E402
 from d30.protocol import (  # noqa: E402
     PRINT_START_OFFSET_MM,
     TAPE_WIDTH_PX,
@@ -50,7 +51,7 @@ FONT_MEDIA_TYPES = {
     ".woff2": "font/woff2",
 }
 
-app = FastAPI(title="D30 Labeler")
+app = FastAPI(title="D30 Labeler", version=__version__)
 
 _print_lock = asyncio.Lock()
 _last_print: dict = {"ok": None, "detail": "no prints yet"}
@@ -130,6 +131,7 @@ def printer_status():
         except (OSError, subprocess.TimeoutExpired):
             pass
     return {
+        "version": __version__,
         "address": ADDRESS or f"auto ({DEVICE_NAME})",
         "bluezConnected": connected,
         "forceDryRun": FORCE_DRY_RUN,

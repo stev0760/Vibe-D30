@@ -482,7 +482,7 @@ async function pollStatus() {
     const dot = $("#statusDot");
     dot.className = s.bluezConnected ? "dot on" : "dot";
     $("#statusText").textContent =
-      `${s.address}${s.forceDryRun ? " · SERVER DRY-RUN" : ""}`;
+      `v${s.version} · ${s.address}${s.forceDryRun ? " · SERVER DRY-RUN" : ""}`;
   } catch {
     $("#statusDot").className = "dot err";
   }

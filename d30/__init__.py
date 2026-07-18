@@ -3,6 +3,8 @@
 Protocol details and reverse-engineering notes live in docs/ble.md.
 """
 
+__version__ = "1.0.0.dev0"
+
 from .protocol import (
     CHUNK_SIZE,
     DOTS_PER_MM,
@@ -14,6 +16,7 @@ from .protocol import (
 from .transport import DEFAULT_ADDRESS, send_raster
 
 __all__ = [
+    "__version__",
     "CHUNK_SIZE",
     "DOTS_PER_MM",
     "TAPE_WIDTH_MM",

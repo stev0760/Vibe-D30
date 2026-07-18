@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 
+from . import __version__
 from .protocol import build_packet, pack_raster
 from .render import render_label
 from .transport import DEFAULT_ADDRESS, DEVICE_NAME, PrinterNotFound, send_raster
@@ -13,6 +14,7 @@ def main(argv=None):
         prog="d30",
         description="Print a text label on a Phomemo D30 over BLE.",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("text", help="Text to print on the label")
     parser.add_argument(
         "--length-mm", type=int, default=40, help="Label length in mm (default: 40)"
