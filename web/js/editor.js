@@ -1,7 +1,7 @@
 // App orchestration: document state, selection, panels, persistence, print.
 
 import { LabelCanvas } from "./canvas.js";
-import { autoFitFontPx, ensureImageBitmap, makeIcon, makeImage, makeText, measure, newId, seedIds } from "./elements.js";
+import { autoFitFontPx, ensureImageBitmap, makeIcon, makeImage, makeShape, makeText, measure, newId, seedIds, simplifyStroke } from "./elements.js";
 import { defaultFontId, listFonts, loadFont } from "./fonts.js";
 import { History } from "./history.js";
 
@@ -19,6 +19,7 @@ const CAL_KEY = "d30cal";
 let doc = { tapeWidthPx: 96, lengthMode: "fixed", lengthMm: 40, elements: [] };
 let selectedId = null;
 let canvas;
+let tool = "select"; // "select" | "draw" (freehand pencil)
 
 // ---- length ---------------------------------------------------------------
 
@@ -206,7 +207,11 @@ function renderElementList() {
     li.className = el.id === selectedId ? "selected" : "";
     const label = document.createElement("span");
     label.textContent =
-      el.type === "text" ? `T “${(el.text || "").slice(0, 18)}”` : el.type === "icon" ? `◆ ${el.name}` : "▣ image";
+      el.type === "text" ? `T “${(el.text || "").slice(0, 18)}”`
+      : el.type === "icon" ? `◆ ${el.name}`
+      : el.type === "shape" ? (el.kind === "line" ? "╱ line" : "▭ rect")
+      : el.type === "pencil" ? `✎ drawing (${el.strokes.length})`
+      : "▣ image";
     label.addEventListener("click", () => setSelection(el.id));
     const up = document.createElement("button");
     up.textContent = "↑";
@@ -243,6 +248,7 @@ function syncPropsPanel() {
   const el = selectedEl();
   $("#textProps").style.display = el?.type === "text" ? "" : "none";
   $("#imageProps").style.display = el?.type === "image" || el?.type === "icon" ? "" : "none";
+  $("#shapeProps").style.display = el?.type === "shape" ? "" : "none";
   $("#arrangeProps").style.display = el ? "" : "none";
   if (el?.type === "text") {
     $("#propText").value = el.text;
@@ -254,6 +260,14 @@ function syncPropsPanel() {
   } else if (el?.type === "image" || el?.type === "icon") {
     $("#imgMode").value = el.mode;
     $("#imgThreshold").value = el.threshold;
+  } else if (el?.type === "shape") {
+    $("#shapeStrokeW").value = el.strokeW;
+    $("#shapeFill").checked = !!el.fill;
+    $("#shapeRadius").value = el.radius || 0;
+    $("#shapeFlip").checked = !!el.flip;
+    $("#shapeFill").parentElement.style.display = el.kind === "rect" ? "" : "none";
+    $("#shapeRadius").parentElement.style.display = el.kind === "rect" ? "" : "none";
+    $("#shapeFlip").parentElement.style.display = el.kind === "line" ? "" : "none";
   }
 }
 
@@ -343,6 +357,40 @@ function wirePropsPanel() {
     }
   });
   $("#deleteImgEl").addEventListener("click", deleteSelected);
+
+  $("#shapeStrokeW").addEventListener("input", (e) => {
+    const el = selectedEl();
+    if (el?.type === "shape") {
+      commit(`strokeW:${el.id}`);
+      el.strokeW = Math.max(1, Math.min(24, Number(e.target.value) || 1));
+      update();
+    }
+  });
+  $("#shapeFill").addEventListener("change", (e) => {
+    const el = selectedEl();
+    if (el?.type === "shape") {
+      commit();
+      el.fill = e.target.checked;
+      update();
+    }
+  });
+  $("#shapeRadius").addEventListener("input", (e) => {
+    const el = selectedEl();
+    if (el?.type === "shape") {
+      commit(`radius:${el.id}`);
+      el.radius = Math.max(0, Number(e.target.value) || 0);
+      update();
+    }
+  });
+  $("#shapeFlip").addEventListener("change", (e) => {
+    const el = selectedEl();
+    if (el?.type === "shape") {
+      commit();
+      el.flip = e.target.checked;
+      update();
+    }
+  });
+  $("#deleteShapeEl").addEventListener("click", deleteSelected);
 }
 
 function deleteSelected() {
@@ -385,6 +433,74 @@ async function addText() {
   commit();
   doc.elements.push(el);
   setSelection(el.id); // update() auto-fits and centers it (not userMoved yet)
+}
+
+function addShape(kind) {
+  const L = getLengthPx();
+  const H = doc.tapeWidthPx;
+  const el =
+    kind === "line"
+      ? makeShape("line", AUTO_MARGIN_PX, Math.round(H / 2) - 1, L - 2 * AUTO_MARGIN_PX, 2)
+      : makeShape("rect", AUTO_MARGIN_PX, AUTO_MARGIN_PX, L - 2 * AUTO_MARGIN_PX, H - 2 * AUTO_MARGIN_PX);
+  commit();
+  doc.elements.push(el);
+  setSelection(el.id);
+}
+
+// ---- freehand pencil --------------------------------------------------------
+// A finished stroke lands in the selected pencil element (or a new one),
+// normalized 0..1 inside the element bbox. Existing strokes are converted to
+// absolute coords, the bbox unioned, and everything renormalized; the current
+// width scale is baked into old stroke widths so nothing visibly changes.
+
+function setTool(next) {
+  tool = next;
+  $("#drawToggle").classList.toggle("active", tool === "draw");
+}
+
+function addPencilStroke(rawPts, width) {
+  const pts = simplifyStroke(rawPts.map((p) => [p.x, p.y]));
+  if (!pts.length) return;
+  commit();
+  let el = selectedEl();
+  const abs = []; // [strokeWidth, [[x,y],...]] in doc coords
+  if (el?.type === "pencil") {
+    const ws = (el.w / el.natW + el.h / el.natH) / 2;
+    for (const s of el.strokes) {
+      abs.push([s.w * ws, s.pts.map(([nx, ny]) => [el.x + nx * el.w, el.y + ny * el.h])]);
+    }
+  } else {
+    el = null;
+  }
+  abs.push([width, pts]);
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [w, spts] of abs) {
+    for (const [x, y] of spts) {
+      minX = Math.min(minX, x - w / 2);
+      minY = Math.min(minY, y - w / 2);
+      maxX = Math.max(maxX, x + w / 2);
+      maxY = Math.max(maxY, y + w / 2);
+    }
+  }
+  const bw = Math.max(2, maxX - minX);
+  const bh = Math.max(2, maxY - minY);
+  const strokes = abs.map(([w, spts]) => ({
+    w,
+    pts: spts.map(([x, y]) => [(x - minX) / bw, (y - minY) / bh]),
+  }));
+
+  if (el) {
+    Object.assign(el, { x: minX, y: minY, w: bw, h: bh, natW: bw, natH: bh, strokes });
+  } else {
+    el = {
+      id: newId(), type: "pencil",
+      x: minX, y: minY, w: bw, h: bh, natW: bw, natH: bh,
+      strokes, userMoved: true,
+    };
+    doc.elements.push(el);
+  }
+  setSelection(el.id);
 }
 
 function loadImg(src) {
@@ -590,6 +706,10 @@ function wireKeyboard() {
   document.addEventListener("keydown", (e) => {
     // Form fields keep their native keyboard behavior (incl. text undo).
     if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+    if (e.key === "Escape" && tool === "draw") {
+      setTool("select");
+      return;
+    }
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
     if (mod && key === "z") {
@@ -643,6 +763,9 @@ async function boot() {
     onSelect: setSelection,
     onChange: update,
     onCommit: commit,
+    getTool: () => tool,
+    getPenWidth: () => Math.max(1, Math.min(16, Number($("#penWidth").value) || 3)),
+    onPencilStroke: addPencilStroke,
   });
 
   fontsCache = await listFonts();
@@ -658,6 +781,9 @@ async function boot() {
     e.target.value = ""; // allow re-adding the same file
   });
   $("#addIcon").addEventListener("click", openIconPicker);
+  $("#addRect").addEventListener("click", () => addShape("rect"));
+  $("#addLine").addEventListener("click", () => addShape("line"));
+  $("#drawToggle").addEventListener("click", () => setTool(tool === "draw" ? "select" : "draw"));
   $("#undoBtn").addEventListener("click", doUndo);
   $("#redoBtn").addEventListener("click", doRedo);
   $("#dupEl").addEventListener("click", duplicateSelected);

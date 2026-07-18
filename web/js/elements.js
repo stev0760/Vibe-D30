@@ -60,7 +60,7 @@ export function measure(el) {
       ascent, left,
     };
   }
-  // image / icon: explicit box
+  // image / icon / shape / pencil: explicit box
   return { x: el.x, y: el.y, w: el.w, h: el.h };
 }
 
@@ -99,6 +99,10 @@ export function draw(ctx, el) {
       ctx.strokeText(el.text, penX, baseY);
     }
     ctx.restore();
+  } else if (el.type === "shape") {
+    drawShape(ctx, el);
+  } else if (el.type === "pencil") {
+    drawPencil(ctx, el);
   } else if ((el.type === "image" || el.type === "icon") && el._bitmap) {
     // Multiply: ink accumulates. The bitmap's white background multiplies to
     // identity, so an element's bounding box doesn't erase what's under it.
@@ -107,6 +111,117 @@ export function draw(ctx, el) {
     ctx.drawImage(el._bitmap, el.x, el.y, el.w, el.h);
     ctx.restore();
   }
+}
+
+// Shapes are pure black geometry: axis-aligned strokes land on whole pixels
+// (crisp through the global threshold pass); diagonals antialias and then
+// threshold exactly like glyph edges do.
+function drawShape(ctx, el) {
+  const lw = Math.max(1, el.strokeW || 1);
+  ctx.save();
+  ctx.fillStyle = "#000";
+  ctx.strokeStyle = "#000";
+  if (el.kind === "rect") {
+    const r = Math.max(0, Math.min(el.radius || 0, el.w / 2, el.h / 2));
+    if (el.fill) {
+      ctx.beginPath();
+      ctx.roundRect(el.x, el.y, el.w, el.h, r);
+      ctx.fill();
+    } else {
+      // Stroke inset by half the line width so ink stays inside the bbox.
+      ctx.lineWidth = Math.min(lw, el.w / 2, el.h / 2);
+      ctx.beginPath();
+      ctx.roundRect(el.x + lw / 2, el.y + lw / 2, Math.max(1, el.w - lw), Math.max(1, el.h - lw), r);
+      ctx.stroke();
+    }
+  } else if (el.kind === "line") {
+    // Degenerate bbox = crisp horizontal/vertical rule (the common case);
+    // otherwise a corner-to-corner diagonal, mirrored by `flip`.
+    if (el.h <= lw + 1) {
+      ctx.fillRect(el.x, el.y + Math.round((el.h - lw) / 2), el.w, lw);
+    } else if (el.w <= lw + 1) {
+      ctx.fillRect(el.x + Math.round((el.w - lw) / 2), el.y, lw, el.h);
+    } else {
+      const inset = lw / 2;
+      ctx.lineWidth = lw;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      if (el.flip) {
+        ctx.moveTo(el.x + el.w - inset, el.y + inset);
+        ctx.lineTo(el.x + inset, el.y + el.h - inset);
+      } else {
+        ctx.moveTo(el.x + inset, el.y + inset);
+        ctx.lineTo(el.x + el.w - inset, el.y + el.h - inset);
+      }
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+// Pencil strokes are vectors: points normalized 0..1 inside the element bbox,
+// re-rendered at any size (resize stays crisp, edges threshold like glyphs).
+function drawPencil(ctx, el) {
+  if (!el.strokes?.length || !el.natW || !el.natH) return;
+  const ws = (el.w / el.natW + el.h / el.natH) / 2; // width follows avg scale
+  ctx.save();
+  ctx.strokeStyle = "#000";
+  ctx.fillStyle = "#000";
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const s of el.strokes) {
+    const lw = Math.max(1, s.w * ws);
+    const pts = s.pts;
+    if (!pts.length) continue;
+    if (pts.length === 1) {
+      ctx.beginPath();
+      ctx.arc(el.x + pts[0][0] * el.w, el.y + pts[0][1] * el.h, lw / 2, 0, Math.PI * 2);
+      ctx.fill();
+      continue;
+    }
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.moveTo(el.x + pts[0][0] * el.w, el.y + pts[0][1] * el.h);
+    for (let i = 1; i < pts.length; i++) {
+      ctx.lineTo(el.x + pts[i][0] * el.w, el.y + pts[i][1] * el.h);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Ramer–Douglas–Peucker polyline simplification (points in doc px).
+export function simplifyStroke(pts, epsilon = 0.5) {
+  if (pts.length < 3) return pts;
+  const keep = new Uint8Array(pts.length);
+  keep[0] = keep[pts.length - 1] = 1;
+  const stack = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    const [ax, ay] = pts[a];
+    const [bx, by] = pts[b];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len = Math.hypot(dx, dy) || 1e-9;
+    let maxDist = 0;
+    let maxIdx = -1;
+    for (let i = a + 1; i < b; i++) {
+      const dist = Math.abs(dx * (ay - pts[i][1]) - (ax - pts[i][0]) * dy) / len;
+      if (dist > maxDist) {
+        maxDist = dist;
+        maxIdx = i;
+      }
+    }
+    if (maxDist > epsilon) {
+      keep[maxIdx] = 1;
+      stack.push([a, maxIdx], [maxIdx, b]);
+    }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+
+export function makeShape(kind, x, y, w, h) {
+  return { id: newId(), type: "shape", kind, x, y, w, h, strokeW: 2, fill: false, radius: 0, flip: false, userMoved: true };
 }
 
 export function makeText(text, fontId, x, y, fontPx = 48) {

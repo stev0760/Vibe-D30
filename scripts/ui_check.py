@@ -291,6 +291,68 @@ async def main():
         )
         check("align-left snaps to safe margin", aligned == 8, f"x={aligned}")
 
+        # --- shapes ---------------------------------------------------------------
+        ink_before_shape = (await preview_ink(page))["black"]
+        await page.click("#addRect")
+        await page.wait_for_timeout(400)
+        ink_rect = (await preview_ink(page))["black"]
+        check("rect frame adds ink", ink_rect > ink_before_shape,
+              f"{ink_before_shape} -> {ink_rect}")
+        await page.click("#addLine")
+        await page.wait_for_timeout(400)
+        ink_line = (await preview_ink(page))["black"]
+        # a full-width 2px rule is ~ (320-16)*2 = 608px of ink, minus whatever
+        # it overlaps of the showcase elements already on the label
+        check("line adds a rule's worth of ink", 150 < ink_line - ink_rect < 900,
+              f"delta {ink_line - ink_rect}")
+        await page.keyboard.press("Control+z")
+        await page.keyboard.press("Control+z")
+        await page.wait_for_timeout(400)
+
+        # --- freehand pencil --------------------------------------------------------
+        box2 = await (await page.query_selector("#editCanvas")).bounding_box()
+        await page.click("#drawToggle")
+        cx, cy = box2["x"] + box2["width"] * 0.3, box2["y"] + box2["height"] * 0.4
+        await page.mouse.move(cx, cy)
+        await page.mouse.down()
+        await page.mouse.move(cx + 120, cy + 40, steps=10)
+        await page.mouse.move(cx + 200, cy - 20, steps=10)
+        await page.mouse.up()
+        await page.click("#drawToggle")  # exit draw mode
+        await page.wait_for_timeout(600)
+        pencil = await page.evaluate(
+            """() => {
+                const doc = JSON.parse(localStorage.getItem('d30doc'));
+                return doc.elements.find(e => e.type === 'pencil') ?? null;
+            }"""
+        )
+        check(
+            "pencil stroke creates element",
+            pencil is not None and len(pencil["strokes"][0]["pts"]) > 2,
+            f"{len(pencil['strokes'][0]['pts']) if pencil else 0} pts",
+        )
+        await page.reload()
+        await wait_ready(page)
+        await page.wait_for_timeout(600)
+        pencil2 = await page.evaluate(
+            """() => {
+                const doc = JSON.parse(localStorage.getItem('d30doc'));
+                return doc.elements.some(e => e.type === 'pencil');
+            }"""
+        )
+        check("pencil survives reload", bool(pencil2))
+        # remove it again so downstream counts stay valid
+        await page.evaluate(
+            """() => {
+                const doc = JSON.parse(localStorage.getItem('d30doc'));
+                doc.elements = doc.elements.filter(e => e.type !== 'pencil');
+                localStorage.setItem('d30doc', JSON.stringify(doc));
+                location.reload();
+            }"""
+        )
+        await wait_ready(page)
+        await page.wait_for_timeout(600)
+
         # --- auto length --------------------------------------------------------
         await page.select_option("#lengthMode", "auto")
         await page.wait_for_timeout(400)

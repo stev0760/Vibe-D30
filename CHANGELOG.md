@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Duplicate (Ctrl+D + Arrange button) and in-app element copy/paste (Ctrl+C/V).
 - Arrange panel: align selection left/center/right/top/middle/bottom within the
   label, snapping to the 1mm safe margin.
+- Shape elements: rectangle/frame (stroke width, optional fill, corner radius)
+  and line (crisp horizontal/vertical rules, diagonals with a flip toggle).
+- Freehand pencil: a Draw mode that captures strokes as vector paths
+  (Ramer–Douglas–Peucker–simplified, normalized to the element box), so
+  drawings resize crisply and threshold like text edges.
 
 ### Fixed
 - Restored documents now rebuild image/icon bitmaps reliably: all runtime-only

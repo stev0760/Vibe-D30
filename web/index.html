@@ -78,6 +78,8 @@
     button { cursor: pointer; }
     button:hover { border-color: var(--accent); }
     button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    #penWidth { width: 52px; }
     button:disabled { opacity: .5; cursor: default; }
     #elementList { list-style: none; margin: 0; padding: 0; }
     #elementList li {
@@ -135,6 +137,10 @@
     <button id="addText">+ Text</button>
     <button id="addImage">+ Image</button>
     <button id="addIcon">+ Icon</button>
+    <button id="addRect" title="Rectangle / frame">+ Rect</button>
+    <button id="addLine" title="Line / rule">+ Line</button>
+    <button id="drawToggle" title="Freehand pencil — draw on the label (Esc to exit)">✏ Draw</button>
+    <input type="number" id="penWidth" value="3" min="1" max="16" title="Pencil width (px)" />
     <input type="file" id="imageFile" accept="image/*" hidden />
     <button id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
     <button id="redoBtn" title="Redo (Ctrl+Shift+Z)">↷</button>
@@ -172,6 +178,14 @@
         </label>
         <label class="row">Level <input type="range" id="imgThreshold" min="1" max="254" value="128" style="flex:1" /></label>
         <button id="deleteImgEl" style="margin-top:6px">Delete element</button>
+      </section>
+      <section id="shapeProps" style="display:none">
+        <h2>Shape</h2>
+        <label class="row">Stroke <input type="number" id="shapeStrokeW" min="1" max="24" value="2" /></label>
+        <label class="row">Fill <input type="checkbox" id="shapeFill" /></label>
+        <label class="row">Corner radius <input type="number" id="shapeRadius" min="0" max="48" value="0" /></label>
+        <label class="row">Flip diagonal <input type="checkbox" id="shapeFlip" /></label>
+        <button id="deleteShapeEl" style="margin-top:6px">Delete element</button>
       </section>
       <section id="arrangeProps" style="display:none">
         <h2>Arrange</h2>

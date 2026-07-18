@@ -19,8 +19,9 @@ export class LabelCanvas {
   constructor(editCanvas, previewCanvas, callbacks) {
     this.edit = editCanvas;
     this.preview = previewCanvas;
-    this.cb = callbacks; // { onSelect(id), onChange(), getDoc(), getSelection(), getLengthPx() }
+    this.cb = callbacks; // { onSelect(id), onChange(), onCommit(), getDoc(), getSelection(), getLengthPx(), getTool(), onPencilStroke(pts, width) }
     this._drag = null;
+    this._penStroke = null; // in-progress freehand stroke, doc coords
     this.zoom = 4; // recomputed every render
 
     editCanvas.addEventListener("pointerdown", (e) => this._pointerDown(e));
@@ -71,6 +72,21 @@ export class LabelCanvas {
     ctx.scale(zoom, zoom);
     for (const el of doc.elements) draw(ctx, el);
     ctx.restore();
+
+    // Live pencil stroke: instant feedback while drawing; it becomes a real
+    // pencil element (and reaches the print canvas) on pointerup.
+    if (this._penStroke?.length) {
+      ctx.save();
+      ctx.scale(zoom, zoom);
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = this._penWidth ?? 3;
+      ctx.lineCap = ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(this._penStroke[0].x, this._penStroke[0].y);
+      for (const p of this._penStroke) ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // Selection chrome (drawn in screen space over the scaled content)
     const sel = this._selected();
@@ -161,6 +177,13 @@ export class LabelCanvas {
   _pointerDown(e) {
     const p = this._docPos(e);
 
+    if (this.cb.getTool?.() === "draw") {
+      this._penWidth = this.cb.getPenWidth?.() ?? 3;
+      this._penStroke = [p];
+      this.edit.setPointerCapture(e.pointerId);
+      return;
+    }
+
     // Resize handle of current selection first
     const sel = this._selected();
     if (sel && this._onHandle(p, sel)) {
@@ -181,8 +204,17 @@ export class LabelCanvas {
 
   _pointerMove(e) {
     const p = this._docPos(e);
+    if (this._penStroke) {
+      this._penStroke.push(p);
+      this.render();
+      return;
+    }
     if (!this._drag) {
       // Hover feedback: make the handle and draggable elements discoverable.
+      if (this.cb.getTool?.() === "draw") {
+        this.edit.style.cursor = "crosshair";
+        return;
+      }
       const sel = this._selected();
       this.edit.style.cursor =
         sel && this._onHandle(p, sel) ? "nwse-resize" : this._hitTest(p) ? "move" : "default";
@@ -213,6 +245,13 @@ export class LabelCanvas {
   }
 
   _pointerUp(e) {
+    if (this._penStroke) {
+      this.edit.releasePointerCapture(e.pointerId);
+      const pts = this._penStroke;
+      this._penStroke = null;
+      this.cb.onPencilStroke?.(pts, this._penWidth);
+      return;
+    }
     if (this._drag) {
       this.edit.releasePointerCapture(e.pointerId);
       this._drag = null;
