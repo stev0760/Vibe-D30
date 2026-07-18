@@ -35,7 +35,14 @@ async def wait_ready(page):
     await page.wait_for_function("document.querySelectorAll('#fontSelect option').length > 0")
 
 
-async def wait_print_done(page):
+async def do_print(page, button):
+    """Click a print/calibrate button and wait for its final status.
+
+    Clears the previous status first — otherwise the wait can race, seeing
+    the prior print's final text before this print's 'printing…' appears.
+    """
+    await page.evaluate("document.querySelector('#printStatus').textContent = ''")
+    await page.click(button)
     await page.wait_for_function(
         "document.querySelector('#printStatus').textContent.length > 0"
         " && !document.querySelector('#printStatus').textContent.includes('…')"
@@ -108,8 +115,18 @@ async def main():
             and box["x"] + box["width"] <= 1366 and box["y"] + box["height"] <= 720
         )
         check("canvas fully in viewport", fits, f"{box['width']:.0f}x{box['height']:.0f}")
-        aside = await (await page.query_selector("aside")).bounding_box()
+        aside = await (await page.query_selector("#sidebar")).bounding_box()
         check("sidebar fully in viewport", aside["x"] + aside["width"] <= 1366)
+
+        # every insert/tool button visible in the toolbar at 1366x720
+        tools_visible = await page.evaluate(
+            """() => ['addText','addImage','addIcon','addQr','addBarcode','addRect',
+                      'addLine','drawToggle'].every(id => {
+                const r = document.getElementById(id).getBoundingClientRect();
+                return r.width > 0 && r.right <= 1366 && r.bottom <= 720;
+            })"""
+        )
+        check("all insert tools visible", bool(tools_visible))
 
         # arrow nudge hands position control to the user (userMoved);
         # auto-sized text is centered, so the canvas center hits it
@@ -196,22 +213,19 @@ async def main():
         await page.wait_for_timeout(200)
 
         # --- dry-run print of the text label -----------------------------------
-        await page.click("#printBtn")
-        status = await wait_print_done(page)
+        status = await do_print(page, "#printBtn")
         check("dry-run print (text)", "dry run ok" in status, status.strip())
         # 40mm label at the default 0mm offset = 320 rows = 0x0140 LE
         check("header bytes 40mm/12mm", "1b401d7630000c004001" in status, status.strip())
 
         # --- offset control + in-UI calibration ruler ---------------------------
         await page.fill("#offsetMm", "4")
-        await page.click("#printBtn")
-        status = await wait_print_done(page)
+        status = await do_print(page, "#printBtn")
         # 320 rows + 4mm*8px = 352 rows = 0x0160 LE
         check("offset 4mm changes header", "1b401d7630000c006001" in status, status.strip())
         stored = await page.evaluate("JSON.parse(localStorage.getItem('d30cal')).offsetMm")
         check("offset persisted (d30cal)", stored == 4, str(stored))
-        await page.click("#calBtn")
-        status = await wait_print_done(page)
+        status = await do_print(page, "#calBtn")
         check("calibration ruler dry-run", "dry run ok" in status, status.strip())
         await page.fill("#offsetMm", "0")
         await page.wait_for_timeout(150)
@@ -264,8 +278,7 @@ async def main():
         frac = stats["black"] / stats["total"]
         check("preview has ink", 0.02 < frac < 0.9, f"{frac:.1%} black")
 
-        await page.click("#printBtn")
-        status = await wait_print_done(page)
+        status = await do_print(page, "#printBtn")
         check("dry-run print (showcase)", "dry run ok" in status, status.strip())
 
         # --- duplicate + alignment ----------------------------------------------
@@ -324,8 +337,7 @@ async def main():
         ink_qr2 = (await preview_ink(page))["black"]
         check("qr renders deterministically", ink_qr1 == ink_qr2 and ink_qr1 > 400,
               f"{ink_qr1} == {ink_qr2}")
-        await page.click("#printBtn")
-        status = await wait_print_done(page)
+        status = await do_print(page, "#printBtn")
         check("dry-run print with QR keeps header", "1b401d7630000c004001" in status, status.strip())
         await page.click("#elementList li span")
         await page.keyboard.press("Delete")

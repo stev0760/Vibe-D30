@@ -33,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   element types from newer versions are skipped on import, not fatal).
 - Manual canvas zoom (fit / 100% / 200% / 400%) with scrolling at fixed zoom.
 
+### Changed
+- Full UI redesign: two-bar shell (app bar with brand/File/undo/status, insert
+  toolbar with grouped tools and zoom), card-style sidebar sections, restyled
+  modals with backdrop blur, dot-grid canvas backdrop. CSS extracted from the
+  inline `<style>` block into `web/css/tokens.css` / `app.css` /
+  `components.css` on a design-token system; every element id survived, so the
+  Playwright sweep needed only additive changes.
+
 ### Fixed
 - Restored documents now rebuild image/icon bitmaps reliably: all runtime-only
   element fields (`_`-prefixed caches) are stripped from persisted state, where

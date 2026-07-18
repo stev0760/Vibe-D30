@@ -1,0 +1,228 @@
+/* App shell: bars, main split, footer — plus base control styling. */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ---- app bar (brand · file · history · status) ---------------------------- */
+
+#appbar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-m);
+  padding: 8px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--edge-soft);
+}
+
+#brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 4px;
+  user-select: none;
+}
+
+#brandMark {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
+#brand h1 {
+  font-size: 14px;
+  font-weight: 650;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+/* ---- toolbar (insert row) -------------------------------------------------- */
+
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-s);
+  padding: 7px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--edge);
+  flex-wrap: wrap;
+}
+
+.toolGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-s);
+  padding-right: var(--gap-m);
+  margin-right: 2px;
+  border-right: 1px solid var(--edge-soft);
+}
+
+.toolGroup:last-of-type { border-right: none; }
+
+#toolbar label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+#toolbar select { width: auto; }
+
+/* ---- main split ------------------------------------------------------------ */
+
+main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
+
+#canvasArea {
+  flex: 1;
+  min-width: 0;   /* let flexbox shrink this below content size … */
+  min-height: 0;  /* … so the sidebar/footer are never pushed off-screen */
+  overflow: hidden; /* fit zoom never overflows; fixed zoom flips to scroll */
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background:
+    radial-gradient(circle at 1px 1px, var(--edge-soft) 1px, transparent 0) 0 0 / 22px 22px,
+    var(--bg);
+}
+
+#canvasArea.zoomed { place-items: start; overflow: auto; }
+
+#editCanvas {
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--edge), var(--shadow-canvas);
+  border-radius: 3px;
+  touch-action: none;
+}
+
+#sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-left: 1px solid var(--edge-soft);
+  padding: 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-l);
+}
+
+#sidebar h2 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 8px;
+  font-weight: 650;
+}
+
+/* ---- footer (preview + print bar) ------------------------------------------ */
+
+footer {
+  background: var(--panel);
+  border-top: 1px solid var(--edge-soft);
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-m);
+}
+
+#previewWrap { overflow-x: auto; padding: 2px; }
+
+#preview {
+  image-rendering: pixelated;
+  background: #fff;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--edge);
+  display: block;
+}
+
+/* ---- base controls ----------------------------------------------------------- */
+
+input, select, textarea, button {
+  font: inherit;
+  color: inherit;
+  background: var(--field);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-s);
+  padding: 5px 9px;
+}
+
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+input[type="checkbox"] { width: auto; accent-color: var(--accent); }
+input[type="range"] { accent-color: var(--accent); padding: 0; border: none; background: none; }
+input[type="number"] { width: 70px; }
+textarea { width: 100%; resize: vertical; }
+select { width: 100%; }
+
+button {
+  cursor: pointer;
+  background: var(--panel-2);
+  transition: border-color 0.12s, background 0.12s;
+}
+
+button:hover { border-color: var(--accent); }
+
+button.primary {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: #fff;
+  font-weight: 600;
+  padding-inline: 14px;
+}
+
+button.primary:hover { background: var(--accent); }
+
+button.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button:disabled { opacity: 0.5; cursor: default; }
+
+button.iconBtn {
+  padding: 5px 8px;
+  min-width: 32px;
+  line-height: 1.2;
+}
+
+label.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+label.row > span { display: inline-flex; align-items: center; gap: 10px; }
+label.row > span label { display: inline-flex; align-items: center; gap: 4px; }
+
+.spacer { flex: 1; }
+.hint { color: var(--muted); font-size: 12px; }
+
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); display: inline-block; }
+.dot.on { background: var(--ok); }
+.dot.err { background: var(--danger); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 6px; border: 2px solid var(--panel); }
+::-webkit-scrollbar-track { background: transparent; }

@@ -4,162 +4,41 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>D30 Labeler</title>
-  <style>
-    :root {
-      --bg: #16181d;
-      --panel: #1f232b;
-      --edge: #333a46;
-      --text: #d7dae0;
-      --muted: #8b93a1;
-      --accent: #2563eb;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font: 14px/1.4 system-ui, sans-serif;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-    header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 8px 14px;
-      background: var(--panel);
-      border-bottom: 1px solid var(--edge);
-    }
-    header h1 { font-size: 15px; margin: 0 8px 0 0; font-weight: 600; }
-    main { flex: 1; display: flex; min-height: 0; min-width: 0; }
-    #canvasArea {
-      flex: 1;
-      min-width: 0;   /* let flexbox shrink this below content size … */
-      min-height: 0;  /* … so the sidebar/footer are never pushed off-screen */
-      overflow: hidden; /* canvas zoom fits the space; nothing to scroll to */
-      display: grid;
-      place-items: center;
-      padding: 16px;
-    }
-    #editCanvas {
-      background: #fff;
-      box-shadow: 0 0 0 1px var(--edge), 0 8px 30px rgba(0,0,0,.45);
-      border-radius: 3px;
-      touch-action: none;
-    }
-    aside {
-      width: 260px;
-      flex-shrink: 0;
-      background: var(--panel);
-      border-left: 1px solid var(--edge);
-      padding: 12px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; }
-    label.row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
-    label.row > span { display: inline-flex; align-items: center; gap: 10px; }
-    label.row > span label { display: inline-flex; align-items: center; gap: 4px; }
-    input, select, textarea, button {
-      font: inherit;
-      color: inherit;
-      background: #262b35;
-      border: 1px solid var(--edge);
-      border-radius: 5px;
-      padding: 5px 8px;
-    }
-    input[type="checkbox"] { width: auto; }
-    input[type="number"] { width: 70px; }
-    textarea { width: 100%; resize: vertical; }
-    select { width: 100%; }
-    button { cursor: pointer; }
-    button:hover { border-color: var(--accent); }
-    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-    button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-    #penWidth { width: 52px; }
-    button:disabled { opacity: .5; cursor: default; }
-    #elementList { list-style: none; margin: 0; padding: 0; }
-    #elementList li {
-      display: flex; align-items: center; gap: 6px;
-      padding: 4px 6px; border-radius: 4px;
-    }
-    #elementList li span { flex: 1; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #elementList li.selected { background: #2a3140; }
-    #elementList button { padding: 1px 6px; }
-    footer {
-      background: var(--panel);
-      border-top: 1px solid var(--edge);
-      padding: 10px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    #previewWrap { overflow-x: auto; }
-    #preview { image-rendering: pixelated; background: #fff; border-radius: 2px; box-shadow: 0 0 0 1px var(--edge); }
-    #printBar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-    #printBar label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-    #printBar select { width: auto; }
-    #printBar input[type="number"] { width: 62px; }
-    #printStatus { color: var(--muted); }
-    #lengthReadout { color: var(--muted); font-variant-numeric: tabular-nums; }
-    .dot { width: 9px; height: 9px; border-radius: 50%; background: #555; display: inline-block; }
-    .dot.on { background: #22c55e; }
-    .dot.err { background: #ef4444; }
-    .spacer { flex: 1; }
-    .btnRow { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
-    .btnRow button { padding: 4px 9px; }
-    .hint { color: var(--muted); font-size: 12px; }
-    #iconPicker, #docsModal {
-      position: fixed; inset: 0; background: rgba(0,0,0,.55);
-      display: grid; place-items: center; z-index: 10;
-    }
-    #docsBox {
-      background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
-      width: 480px; max-width: 92vw; max-height: 70vh;
-      display: flex; flex-direction: column; padding: 12px; gap: 10px;
-    }
-    #docsHead { display: flex; gap: 8px; align-items: center; }
-    #docsHead input { flex: 1; min-width: 80px; }
-    #docsList { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
-    #docsList li { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 4px; }
-    #docsList li span { flex: 1; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #docsList li.selected { background: #2a3140; }
-    #docsList button { padding: 1px 6px; }
-    #canvasArea.zoomed { place-items: start; overflow: auto; }
-    #iconPickerBox {
-      background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
-      width: 560px; max-width: 92vw; max-height: 70vh;
-      display: flex; flex-direction: column; padding: 12px; gap: 10px;
-    }
-    #iconPickerHead { display: flex; gap: 10px; align-items: center; }
-    #iconPickerHead input { flex: 1; }
-    #iconGrid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
-      gap: 6px; overflow-y: auto;
-    }
-    .iconCell { display: grid; place-items: center; aspect-ratio: 1; padding: 6px; }
-    .iconCell svg { width: 22px; height: 22px; }
-  </style>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/app.css" />
+  <link rel="stylesheet" href="/css/components.css" />
 </head>
 <body>
-  <header>
-    <h1>D30 Labeler</h1>
+  <div id="appbar">
+    <span id="brand"><span id="brandMark">D30</span><h1>Labeler</h1></span>
     <button id="fileBtn" title="Save, load, export and import labels">File ▾</button>
-    <button id="addText">+ Text</button>
-    <button id="addImage">+ Image</button>
-    <button id="addIcon">+ Icon</button>
-    <button id="addQr" title="QR code">+ QR</button>
-    <button id="addBarcode" title="Code 128 barcode">+ Barcode</button>
-    <button id="addRect" title="Rectangle / frame">+ Rect</button>
-    <button id="addLine" title="Line / rule">+ Line</button>
-    <button id="drawToggle" title="Freehand pencil — draw on the label (Esc to exit)">✏ Draw</button>
-    <input type="number" id="penWidth" value="3" min="1" max="16" title="Pencil width (px)" />
+    <button id="undoBtn" class="iconBtn" title="Undo (Ctrl+Z)">↶</button>
+    <button id="redoBtn" class="iconBtn" title="Redo (Ctrl+Shift+Z)">↷</button>
+    <span class="spacer"></span>
+    <span id="lengthReadout"></span>
+    <span class="dot" id="statusDot"></span>
+    <span class="hint" id="statusText"></span>
+  </div>
+
+  <div id="toolbar">
+    <span class="toolGroup">
+      <button id="addText">＋ Text</button>
+      <button id="addImage">＋ Image</button>
+      <button id="addIcon">＋ Icon</button>
+    </span>
+    <span class="toolGroup">
+      <button id="addQr" title="QR code">＋ QR</button>
+      <button id="addBarcode" title="Code 128 barcode">＋ Barcode</button>
+    </span>
+    <span class="toolGroup">
+      <button id="addRect" title="Rectangle / frame">＋ Rect</button>
+      <button id="addLine" title="Line / rule">＋ Line</button>
+    </span>
+    <span class="toolGroup">
+      <button id="drawToggle" title="Freehand pencil — draw on the label (Esc to exit)">✏ Draw</button>
+      <input type="number" id="penWidth" value="3" min="1" max="16" title="Pencil width (px)" />
+    </span>
     <input type="file" id="imageFile" accept="image/*" hidden />
-    <button id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
-    <button id="redoBtn" title="Redo (Ctrl+Shift+Z)">↷</button>
     <span class="spacer"></span>
     <label title="Canvas zoom">🔍
       <select id="zoomSel">
@@ -169,14 +48,11 @@
         <option value="400">400%</option>
       </select>
     </label>
-    <span id="lengthReadout"></span>
-    <span class="dot" id="statusDot"></span>
-    <span class="hint" id="statusText"></span>
-  </header>
+  </div>
 
   <main>
     <div id="canvasArea"><canvas id="editCanvas"></canvas></div>
-    <aside>
+    <aside id="sidebar">
       <section id="textProps" style="display:none">
         <h2>Text</h2>
         <textarea id="propText" rows="2"></textarea>
@@ -237,12 +113,12 @@
       <section id="arrangeProps" style="display:none">
         <h2>Arrange</h2>
         <div class="btnRow">
-          <button id="align-left" title="Align left">⇤</button>
-          <button id="align-centerH" title="Center horizontally">↔</button>
-          <button id="align-right" title="Align right">⇥</button>
-          <button id="align-top" title="Align top">⤒</button>
-          <button id="align-middleV" title="Center vertically">↕</button>
-          <button id="align-bottom" title="Align bottom">⤓</button>
+          <button id="align-left" class="iconBtn" title="Align left">⇤</button>
+          <button id="align-centerH" class="iconBtn" title="Center horizontally">↔</button>
+          <button id="align-right" class="iconBtn" title="Align right">⇥</button>
+          <button id="align-top" class="iconBtn" title="Align top">⤒</button>
+          <button id="align-middleV" class="iconBtn" title="Center vertically">↕</button>
+          <button id="align-bottom" class="iconBtn" title="Align bottom">⤓</button>
         </div>
         <div class="btnRow">
           <button id="dupEl" title="Duplicate (Ctrl+D)">Duplicate</button>
@@ -277,15 +153,15 @@
     </div>
   </footer>
 
-  <div id="docsModal" style="display:none">
-    <div id="docsBox">
-      <div id="docsHead">
+  <div id="docsModal" class="modal" style="display:none">
+    <div id="docsBox" class="modalBox">
+      <div id="docsHead" class="modalHead">
         <input id="docName" placeholder="label name…" />
         <button id="docSave" class="primary">Save</button>
         <button id="docNew">New</button>
         <button id="docExport" title="Download the current label as a .d30.json file">Export</button>
         <button id="docImport" title="Load a .d30.json file">Import</button>
-        <button id="docsClose">✕</button>
+        <button id="docsClose" class="iconBtn">✕</button>
       </div>
       <ul id="docsList"></ul>
       <p class="hint" id="docsStatus"></p>
@@ -293,12 +169,12 @@
   </div>
   <input type="file" id="importFile" accept=".json,application/json" hidden />
 
-  <div id="iconPicker" style="display:none">
-    <div id="iconPickerBox">
-      <div id="iconPickerHead">
+  <div id="iconPicker" class="modal" style="display:none">
+    <div id="iconPickerBox" class="modalBox">
+      <div id="iconPickerHead" class="modalHead">
         <input id="iconSearch" placeholder="search 1995 icons…" />
         <span id="iconCount" class="hint"></span>
-        <button id="iconPickerClose">✕</button>
+        <button id="iconPickerClose" class="iconBtn">✕</button>
       </div>
       <div id="iconGrid"></div>
     </div>

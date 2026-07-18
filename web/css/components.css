@@ -1,0 +1,119 @@
+/* Components: modals, element list, props sections, print bar, toolbar bits. */
+
+/* ---- sidebar sections -------------------------------------------------------- */
+
+#sidebar section {
+  background: var(--panel-2);
+  border: 1px solid var(--edge-soft);
+  border-radius: var(--radius-m);
+  padding: 10px 12px 12px;
+}
+
+.btnRow { display: flex; gap: var(--gap-s); flex-wrap: wrap; margin: 4px 0; }
+.btnRow button { padding: 4px 9px; }
+
+#elementList { list-style: none; margin: 0; padding: 0; }
+
+#elementList li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: var(--radius-s);
+  border: 1px solid transparent;
+}
+
+#elementList li span {
+  flex: 1;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#elementList li.selected {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+#elementList button { padding: 1px 7px; background: transparent; border-color: transparent; }
+#elementList button:hover { border-color: var(--accent); background: var(--panel); }
+
+/* ---- print bar ----------------------------------------------------------------- */
+
+#printBar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-l);
+  flex-wrap: wrap;
+}
+
+#printBar label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--muted); }
+#printBar label > input, #printBar label > select { color: var(--text); }
+#printBar select { width: auto; }
+#printBar input[type="number"] { width: 62px; }
+
+#printStatus { color: var(--muted); font-size: 13px; }
+#lengthReadout { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+
+#penWidth { width: 52px; }
+
+/* ---- modals ---------------------------------------------------------------------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 12, 0.6);
+  backdrop-filter: blur(2px);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+}
+
+.modalBox {
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-modal);
+  max-width: 92vw;
+  max-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  gap: var(--gap-m);
+}
+
+.modalHead { display: flex; gap: 8px; align-items: center; }
+
+#iconPickerBox { width: 560px; }
+#iconPickerHead input { flex: 1; }
+
+#iconGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.iconCell { display: grid; place-items: center; aspect-ratio: 1; padding: 6px; }
+.iconCell svg { width: 22px; height: 22px; }
+.iconCell:hover { background: var(--accent-soft); }
+
+#docsBox { width: 480px; }
+#docsHead input { flex: 1; min-width: 80px; }
+
+#docsList { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
+
+#docsList li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: var(--radius-s);
+  border: 1px solid transparent;
+}
+
+#docsList li span { flex: 1; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#docsList li:hover { background: var(--panel-2); }
+#docsList li.selected { background: var(--accent-soft); border-color: var(--accent); }
+#docsList button { padding: 1px 7px; }

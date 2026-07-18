@@ -1,0 +1,36 @@
+/* Design tokens — dark-first. Every color/size the UI uses comes from here. */
+
+:root {
+  /* surfaces */
+  --bg: #0e1116;
+  --panel: #151a22;
+  --panel-2: #1b212c;
+  --field: #10151d;
+  --edge: #2a3242;
+  --edge-soft: #212936;
+
+  /* text */
+  --text: #e3e7ee;
+  --muted: #8b95a7;
+  --faint: #5c6575;
+
+  /* brand + state */
+  --accent: #3b82f6;
+  --accent-strong: #2563eb;
+  --accent-soft: rgba(59, 130, 246, 0.14);
+  --ok: #22c55e;
+  --danger: #ef4444;
+
+  /* geometry */
+  --radius-s: 5px;
+  --radius-m: 8px;
+  --radius-l: 12px;
+  --gap-s: 6px;
+  --gap-m: 10px;
+  --gap-l: 16px;
+
+  /* elevation + focus */
+  --shadow-modal: 0 18px 50px rgba(0, 0, 0, 0.55);
+  --shadow-canvas: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 34px rgba(0, 0, 0, 0.5);
+  --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
