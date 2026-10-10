@@ -157,8 +157,12 @@ So the stable configuration is: **leave the device bonded and trusted**,
 and let the transport (d30/transport.py `_connect`) attach to the
 existing LE link — it never disconnects first, and on the BR/EDR error it
 waits a few seconds for BlueZ's auto-connect to win, then retries.
-Discovery is not starved by the connection: bleak's BlueZ backend
-returns cached/connected devices, not just live advertisements.
+A connected BLE peripheral stops advertising, and bleak's scanner (as of
+bleak 3.x) only reports devices it sees advertise during the scan — so a
+scan alone never finds the auto-connected printer and fails with "not
+found" while BlueZ shows it `Connected: yes`. `_connect` therefore asks
+BlueZ's object tree (`GetManagedObjects`) for an already-connected D30
+first and attaches to that; it only scans when there's no live link.
 
 Related: KDE/GNOME may pop a "D30 is requesting access" authorization
 dialog (BlueZ's input subsystem treats the fake HID UUID as a keyboard

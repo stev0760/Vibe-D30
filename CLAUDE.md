@@ -98,8 +98,9 @@ GATT (web-bluetooth implementation skips them and works).
 
 **Code layout**: `d30/` is the Python library — `protocol.py` (framing +
 1-bpp packing, tape width parameterized), `transport.py` (bleak
-scan/connect/chunked-write; best-effort `bluetoothctl disconnect` first,
-see Gotchas), `render.py` (PIL text rendering for the CLI), `cli.py`
+connect/chunked-write; attaches to BlueZ's already-connected link found
+via D-Bus — a scan can't see a connected printer — else scans; see
+Gotchas), `render.py` (PIL text rendering for the CLI), `cli.py`
 (`python -m d30`). `d30/__init__.py` holds `__version__` — the single
 source of truth, surfaced via FastAPI, `/api/printer/status`, the UI
 status line, and `--version`. `server/app.py` (FastAPI) serves `web/`

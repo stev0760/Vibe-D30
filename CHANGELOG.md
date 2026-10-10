@@ -5,6 +5,17 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-10
+
+### Fixed
+- Printing failed with "not found" whenever BlueZ had already auto-connected
+  the printer (the normal, preferred state): a connected BLE peripheral stops
+  advertising, and bleak 3.x's scanner only reports devices it sees advertise
+  during the scan. The transport now asks BlueZ over D-Bus for an
+  already-connected D30 and attaches to that link, scanning only when there
+  isn't one. Corrected the docs/ble.md claim that bleak returns
+  cached/connected devices.
+
 ## [1.0.0] - 2026-07-18
 
 ### Added
@@ -70,5 +81,6 @@ Everything to date — the working v1 core, reverse-engineered from scratch:
 - Playwright regression sweep (`scripts/ui_check.py`) covering every v1
   feature including exact dry-run print header bytes.
 
+[1.0.1]: https://github.com/stev0760/Vibe-D30/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/stev0760/Vibe-D30/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/stev0760/Vibe-D30/releases/tag/v0.9.0

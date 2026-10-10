@@ -1,14 +1,14 @@
 """BLE transport for the D30: direct GATT, no OS-level pairing.
 
 The device advertises misleading classic-Bluetooth bits; only GATT works.
-See docs/ble.md for the full story, including the BlueZ auto-reconnect
-race this module works around by disconnecting any stale BlueZ-owned
-connection before scanning.
+See docs/ble.md for the full story, including why this module attaches to
+BlueZ's auto-connected LE link instead of disconnecting it.
 """
 
 import asyncio
 
 from bleak import BleakClient, BleakScanner
+from bleak.backends.device import BLEDevice
 from bleak.exc import BleakDBusError
 
 from .protocol import CHUNK_SIZE, TAPE_WIDTH_PX, build_packet
@@ -34,6 +34,53 @@ class PrinterNotFound(Exception):
     pass
 
 
+async def _bluez_connected_device(address: str | None) -> BLEDevice | None:
+    """Return the printer if BlueZ already holds a live link to it, else None.
+
+    A connected BLE peripheral stops advertising, and bleak's scanner only
+    reports devices it sees advertise (or whose properties change) during
+    the scan — so a scan never finds the auto-connected printer. Ask BlueZ's
+    object tree directly instead. Best-effort: any D-Bus trouble (or a
+    non-BlueZ platform) just falls through to scanning.
+    """
+    try:
+        from dbus_fast import BusType, Message, MessageType, unpack_variants
+        from dbus_fast.aio import MessageBus
+
+        bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+        try:
+            reply = await bus.call(
+                Message(
+                    destination="org.bluez",
+                    path="/",
+                    interface="org.freedesktop.DBus.ObjectManager",
+                    member="GetManagedObjects",
+                )
+            )
+        finally:
+            bus.disconnect()
+        if reply.message_type != MessageType.METHOD_RETURN:
+            return None
+        objects = unpack_variants(reply.body[0])
+    except Exception:
+        return None
+
+    for path, interfaces in objects.items():
+        props = interfaces.get("org.bluez.Device1")
+        if not props or not props.get("Connected"):
+            continue
+        if address:
+            match = props.get("Address", "").upper() == address.upper()
+        else:
+            match = props.get("Name") == DEVICE_NAME
+        if match:
+            # Same details shape bleak's own BlueZ scanner produces.
+            return BLEDevice(
+                props["Address"], props.get("Alias"), {"path": path, "props": props}
+            )
+    return None
+
+
 async def _connect(address: str | None, scan_timeout: float) -> BleakClient:
     """Find the printer (by MAC if given, else by BLE name) and return a
     connected client.
@@ -42,8 +89,8 @@ async def _connect(address: str | None, scan_timeout: float) -> BleakClient:
     (bonded + trusted), that LE link is a *good* thing — bleak attaches to it
     directly, sidestepping BlueZ's broken bearer selection for this device
     (a fresh Connect() may try classic BR/EDR and fail; the printer is
-    LE-only). bleak's scanner returns BlueZ-cached devices too, so the
-    printer is found even while connected and not advertising.
+    LE-only). A connected printer doesn't advertise, so look for that link
+    in BlueZ first and only scan when there isn't one.
 
     On the BR/EDR bearer error, wait and retry: BlueZ's own auto-connect
     usually grabs the LE link within a few seconds of the device advertising,
@@ -51,9 +98,10 @@ async def _connect(address: str | None, scan_timeout: float) -> BleakClient:
     """
     last_error: Exception | None = None
     for attempt in range(3):
-        if address:
+        device = await _bluez_connected_device(address)
+        if device is None and address:
             device = await BleakScanner.find_device_by_address(address, timeout=scan_timeout)
-        else:
+        elif device is None:
             device = await BleakScanner.find_device_by_name(DEVICE_NAME, timeout=scan_timeout)
         if device is None:
             raise PrinterNotFound(
