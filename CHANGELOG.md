@@ -82,5 +82,5 @@ Everything to date — the working v1 core, reverse-engineered from scratch:
   feature including exact dry-run print header bytes.
 
 [1.0.1]: https://github.com/stev0760/Vibe-D30/compare/v1.0.0...v1.0.1
-[1.0.0]: https://github.com/stev0760/Vibe-D30/compare/v0.9.0...v1.0.0
+[1.0.0]: https://github.com/stev0760/Vibe-D30/releases/tag/v1.0.0
 [0.9.0]: https://github.com/stev0760/Vibe-D30/releases/tag/v0.9.0
