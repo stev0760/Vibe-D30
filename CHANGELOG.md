@@ -83,4 +83,4 @@ Everything to date — the working v1 core, reverse-engineered from scratch:
 
 [1.0.1]: https://github.com/stev0760/Vibe-D30/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/stev0760/Vibe-D30/releases/tag/v1.0.0
-[0.9.0]: https://github.com/stev0760/Vibe-D30/releases/tag/v0.9.0
+[0.9.0]: #090---2026-07-17
